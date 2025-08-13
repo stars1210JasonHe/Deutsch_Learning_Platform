@@ -1,0 +1,56 @@
+[project]
+name = "vibe-deutsch"
+version = "1.0.0"
+description = "OpenAI-powered German learning platform with smart caching"
+authors = [
+    { name = "Jason He", email = "jason@example.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "python-dotenv>=1.0.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+    "python-Levenshtein>=0.23.0",
+    "openai>=1.3.0",
+    "httpx>=0.25.0",
+    "pillow>=10.1.0",
+    "python-multipart>=0.0.6",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "annotated-types",
+    "email-validator>=2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.7.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true

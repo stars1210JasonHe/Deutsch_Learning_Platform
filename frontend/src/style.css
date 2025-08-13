@@ -1,0 +1,265 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Space Theme Variables */
+:root {
+  --space-dark: #0B1426;
+  --space-darker: #06101F;
+  --space-navy: #1A2332;
+  --space-blue: #2D3F59;
+  --space-light-blue: #4A6FA5;
+  --space-cyan: #00C9DB;
+  --space-purple: #6B46C1;
+  --space-pink: #EC4899;
+  --space-orange: #F59E0B;
+  --space-green: #10B981;
+  --space-gray: #6B7280;
+  --space-light-gray: #9CA3AF;
+  
+  /* Gradients */
+  --gradient-cosmic: linear-gradient(135deg, var(--space-purple) 0%, var(--space-pink) 50%, var(--space-cyan) 100%);
+  --gradient-nebula: linear-gradient(45deg, var(--space-dark) 0%, var(--space-navy) 40%, var(--space-blue) 100%);
+  --gradient-aurora: linear-gradient(90deg, var(--space-cyan) 0%, var(--space-green) 50%, var(--space-purple) 100%);
+}
+
+@layer base {
+  html, body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--space-dark);
+    color: #E5E7EB;
+  }
+  
+  /* Animated Background */
+  .space-bg {
+    background: var(--space-dark);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .space-bg::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: 
+      radial-gradient(circle at 20% 30%, rgba(107, 70, 193, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 40% 80%, rgba(0, 201, 219, 0.1) 0%, transparent 50%);
+    animation: cosmic-drift 20s ease-in-out infinite alternate;
+  }
+
+  @keyframes cosmic-drift {
+    0% { transform: translateX(-5px) translateY(-10px); }
+    100% { transform: translateX(5px) translateY(10px); }
+  }
+
+  /* Floating Stars */
+  .stars {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle 2s infinite alternate;
+  }
+
+  @keyframes twinkle {
+    0% { opacity: 0.3; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1.2); }
+  }
+}
+
+@layer components {
+  /* Glass Morphism Cards */
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-nav {
+    @apply backdrop-blur-md border-b border-white/10;
+    background: rgba(11, 20, 38, 0.8);
+  }
+
+  /* Buttons */
+  .btn-primary {
+    background: var(--gradient-cosmic);
+    @apply text-white font-semibold py-3 px-6 rounded-xl border-none cursor-pointer transition-all duration-300 relative overflow-hidden;
+    box-shadow: 0 4px 15px rgba(107, 70, 193, 0.3);
+  }
+
+  .btn-primary::before {
+    content: '';
+    @apply absolute top-0 -left-full w-full h-full transition-all duration-500;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  }
+
+  .btn-primary:hover::before {
+    @apply left-full;
+  }
+
+  .btn-primary:hover {
+    @apply -translate-y-0.5;
+    box-shadow: 0 8px 25px rgba(107, 70, 193, 0.4);
+  }
+
+  .btn-secondary {
+    @apply bg-white/10 text-gray-300 font-medium py-3 px-6 rounded-xl border border-white/20 cursor-pointer transition-all duration-300 backdrop-blur-md;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-white/15 text-white -translate-y-0.5;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent font-medium py-2 px-4 rounded-lg border cursor-pointer transition-all duration-300;
+    color: var(--space-cyan);
+    border-color: var(--space-cyan);
+  }
+
+  .btn-ghost:hover {
+    background: var(--space-cyan);
+    color: var(--space-dark);
+    box-shadow: 0 0 20px rgba(0, 201, 219, 0.3);
+  }
+
+  /* Input Fields */
+  .input-field {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl px-4 py-3 text-white transition-all duration-300 focus:outline-none;
+  }
+
+  .input-field:focus {
+    border-color: var(--space-cyan);
+    box-shadow: 0 0 0 3px rgba(0, 201, 219, 0.1);
+    @apply bg-white/10;
+  }
+
+  .input-field::placeholder {
+    color: var(--space-light-gray);
+  }
+
+  /* Status Badges */
+  .badge-success {
+    background: linear-gradient(45deg, var(--space-green), #34D399);
+    @apply text-white px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .badge-warning {
+    background: linear-gradient(45deg, var(--space-orange), #FBBF24);
+    color: var(--space-dark);
+    @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .badge-info {
+    background: linear-gradient(45deg, var(--space-cyan), #06B6D4);
+    color: var(--space-dark);
+    @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+  }
+
+  /* Progress Bars */
+  .progress-cosmic {
+    @apply bg-white/10 h-2 rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    background: var(--gradient-aurora);
+    @apply h-full rounded-full transition-all duration-500 relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    @apply absolute top-0 left-0 right-0 bottom-0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: progress-shine 2s infinite;
+  }
+
+  @keyframes progress-shine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  /* Hover Effects */
+  .hover-glow {
+    @apply transition-all duration-300;
+  }
+
+  .hover-glow:hover {
+    box-shadow: 0 0 30px rgba(0, 201, 219, 0.2);
+    @apply -translate-y-0.5;
+  }
+
+  /* Text Gradients */
+  .text-cosmic {
+    background: var(--gradient-cosmic);
+    @apply bg-clip-text text-transparent;
+  }
+
+  .text-aurora {
+    background: var(--gradient-aurora);
+    @apply bg-clip-text text-transparent;
+  }
+
+  /* Loading Animations */
+  @keyframes pulse-cosmic {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .loading-cosmic {
+    animation: pulse-cosmic 1.5s infinite;
+  }
+
+  /* Card Hover Effects */
+  .card-cosmic {
+    @apply glass-card hover-glow p-6 transition-all duration-300;
+  }
+
+  .card-cosmic:hover {
+    @apply border-white/20;
+  }
+
+  /* Navigation Styles */
+  .nav-link {
+    @apply text-gray-300 hover:text-white transition-colors duration-200 relative;
+  }
+
+  .nav-link::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-0 h-0.5 transition-all duration-300;
+    background: var(--gradient-aurora);
+  }
+
+  .nav-link:hover::after {
+    @apply w-full;
+  }
+
+  .nav-link.active {
+    color: var(--space-cyan);
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--space-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gradient-cosmic);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--space-cyan);
+}
