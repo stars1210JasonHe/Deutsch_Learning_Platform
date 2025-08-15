@@ -14,7 +14,9 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = "default-secret-key-change-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 24 * 60  # 24 hours
+    refresh_token_expire_days: int = 30  # 30 days
+    remember_me_expire_days: int = 90  # 90 days for "remember me"
     
     # CORS
     allowed_hosts: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
