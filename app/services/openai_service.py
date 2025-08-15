@@ -23,8 +23,11 @@ class OpenAIService:
         if not self.client:
             # Strict mode: no silent fallback; caller must handle
             raise RuntimeError("OpenAI API key not set; word analysis is unavailable")
+        
+        try:
+            logging.info(f"Analyzing word '{word}' using {settings.openai_base_url}")
             
-        prompt = f"""
+            prompt = f"""
         Analyze the word "{word}" and return a JSON response.
 
         If "{word}" is a valid German word (including plural forms, conjugated verbs, etc.), return this structure:
@@ -61,7 +64,6 @@ class OpenAIService:
         For suggestions, prioritize words that are phonetically or semantically similar to the input.
         """
         
-        try:
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -75,8 +77,15 @@ class OpenAIService:
             return json.loads(response.choices[0].message.content)
             
         except Exception as e:
-            # Propagate error to the API layer; do not fabricate content
-            raise
+            logging.error(f"OpenAI API error for word '{word}': {str(e)}")
+            if "401" in str(e):
+                raise RuntimeError(f"Authentication failed with OpenRouter. Please check your API key and account status. Error: {str(e)}")
+            elif "403" in str(e):
+                raise RuntimeError(f"Access forbidden. Your OpenRouter account may lack permissions or credits. Error: {str(e)}")
+            elif "429" in str(e):
+                raise RuntimeError(f"Rate limit exceeded. Please try again later. Error: {str(e)}")
+            else:
+                raise RuntimeError(f"API request failed: {str(e)}")
 
     async def translate_sentence(self, sentence: str) -> Dict[str, Any]:
         """Translate sentence and provide word-by-word gloss"""

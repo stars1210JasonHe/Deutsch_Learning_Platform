@@ -14,6 +14,139 @@ from app.models.user import User
 class VocabularyService:
     def __init__(self):
         self.openai_service = OpenAIService()
+        # Simple fallback dictionary for common German words
+        self.fallback_translations = {
+            "bezahlen": {
+                "pos": "verb",
+                "translations_en": ["to pay", "to pay for"],
+                "translations_zh": ["付钱", "支付"],
+                "example": {"de": "Ich muss die Rechnung bezahlen.", "en": "I have to pay the bill.", "zh": "我必须付账单。"}
+            },
+            "blühen": {
+                "pos": "verb", 
+                "translations_en": ["to bloom", "to flower", "to flourish"],
+                "translations_zh": ["开花", "盛开", "繁荣"],
+                "example": {"de": "Die Rosen blühen schön.", "en": "The roses bloom beautifully.", "zh": "玫瑰花开得很美。"}
+            },
+            "essen": {
+                "pos": "verb",
+                "translations_en": ["to eat"],
+                "translations_zh": ["吃"],
+                "example": {"de": "Wir essen zusammen.", "en": "We eat together.", "zh": "我们一起吃饭。"}
+            },
+            "trinken": {
+                "pos": "verb",
+                "translations_en": ["to drink"],
+                "translations_zh": ["喝"],
+                "example": {"de": "Ich trinke Wasser.", "en": "I drink water.", "zh": "我喝水。"}
+            },
+            "gehen": {
+                "pos": "verb",
+                "translations_en": ["to go", "to walk"],
+                "translations_zh": ["去", "走"],
+                "example": {"de": "Wir gehen nach Hause.", "en": "We go home.", "zh": "我们回家。"}
+            },
+            "kommen": {
+                "pos": "verb",
+                "translations_en": ["to come"],
+                "translations_zh": ["来"],
+                "example": {"de": "Kommst du mit?", "en": "Are you coming along?", "zh": "你一起来吗？"}
+            },
+            "sein": {
+                "pos": "verb",
+                "translations_en": ["to be"],
+                "translations_zh": ["是", "存在"],
+                "example": {"de": "Ich bin müde.", "en": "I am tired.", "zh": "我累了。"}
+            },
+            "haben": {
+                "pos": "verb", 
+                "translations_en": ["to have"],
+                "translations_zh": ["有"],
+                "example": {"de": "Ich habe Zeit.", "en": "I have time.", "zh": "我有时间。"}
+            },
+            "sprechen": {
+                "pos": "verb",
+                "translations_en": ["to speak", "to talk"],
+                "translations_zh": ["说话", "讲"],
+                "example": {"de": "Sprechen Sie Deutsch?", "en": "Do you speak German?", "zh": "您说德语吗？"}
+            },
+            "lernen": {
+                "pos": "verb",
+                "translations_en": ["to learn"],
+                "translations_zh": ["学习"],
+                "example": {"de": "Ich lerne Deutsch.", "en": "I am learning German.", "zh": "我在学德语。"}
+            },
+            "Haus": {
+                "pos": "noun",
+                "article": "das",
+                "translations_en": ["house", "home"],
+                "translations_zh": ["房子", "家"],
+                "example": {"de": "Das Haus ist groß.", "en": "The house is big.", "zh": "房子很大。"}
+            },
+            "Auto": {
+                "pos": "noun",
+                "article": "das", 
+                "translations_en": ["car"],
+                "translations_zh": ["汽车"],
+                "example": {"de": "Mein Auto ist rot.", "en": "My car is red.", "zh": "我的车是红色的。"}
+            },
+            "Wasser": {
+                "pos": "noun",
+                "article": "das",
+                "translations_en": ["water"],
+                "translations_zh": ["水"],
+                "example": {"de": "Das Wasser ist kalt.", "en": "The water is cold.", "zh": "水很冷。"}
+            },
+            "Zeit": {
+                "pos": "noun",
+                "article": "die",
+                "translations_en": ["time"],
+                "translations_zh": ["时间"],
+                "example": {"de": "Ich habe keine Zeit.", "en": "I don't have time.", "zh": "我没有时间。"}
+            },
+            "machen": {
+                "pos": "verb",
+                "translations_en": ["to make", "to do"],
+                "translations_zh": ["做", "制作"],
+                "example": {"de": "Was machst du?", "en": "What are you doing?", "zh": "你在做什么？"}
+            },
+            "sagen": {
+                "pos": "verb",
+                "translations_en": ["to say", "to tell"],
+                "translations_zh": ["说", "告诉"],
+                "example": {"de": "Was sagst du?", "en": "What do you say?", "zh": "你说什么？"}
+            },
+            "sehen": {
+                "pos": "verb",
+                "translations_en": ["to see"],
+                "translations_zh": ["看见"],
+                "example": {"de": "Ich kann dich sehen.", "en": "I can see you.", "zh": "我能看见你。"}
+            },
+            "wissen": {
+                "pos": "verb",
+                "translations_en": ["to know"],
+                "translations_zh": ["知道"],
+                "example": {"de": "Ich weiß es nicht.", "en": "I don't know.", "zh": "我不知道。"}
+            },
+            "gut": {
+                "pos": "adjective",
+                "translations_en": ["good", "well"],
+                "translations_zh": ["好", "良好"],
+                "example": {"de": "Das ist gut.", "en": "That is good.", "zh": "这很好。"}
+            },
+            "groß": {
+                "pos": "adjective",
+                "translations_en": ["big", "large", "tall"],
+                "translations_zh": ["大", "高"],
+                "example": {"de": "Das ist sehr groß.", "en": "That is very big.", "zh": "那个很大。"}
+            },
+            "klein": {
+                "pos": "adjective", 
+                "translations_en": ["small", "little"],
+                "translations_zh": ["小"],
+                "example": {"de": "Das Haus ist klein.", "en": "The house is small.", "zh": "房子很小。"}
+            }
+        }
 
     async def get_or_create_word(
         self, 
@@ -39,13 +172,34 @@ class VocabularyService:
             # 返回格式化的词库数据
             return await self._format_word_data(existing_word, from_database=True)
         
-        # 2. 本地不存在，调用OpenAI分析
+        # 2. 本地不存在，先尝试fallback字典，然后调用OpenAI分析
+        fallback_data = self._get_fallback_translation(lemma.lower())
+        
+        if fallback_data:
+            print(f"Using fallback translation for '{lemma}'")
+            # 创建并保存fallback数据到数据库
+            word = await self._save_word_to_database(db, lemma, fallback_data)
+            await self._log_search_history(db, user, lemma, "word_lookup", from_database=False)
+            return await self._format_word_data(word, from_database=False, openai_data=fallback_data)
+        
+        # 3. 没有fallback，调用OpenAI分析
         try:
             print(f"Word '{lemma}' not found in database, calling OpenAI...")
         except UnicodeEncodeError:
             print("Word not found in database, calling OpenAI...")
         
-        openai_analysis = await self.openai_service.analyze_word(lemma)
+        try:
+            openai_analysis = await self.openai_service.analyze_word(lemma)
+        except Exception as openai_error:
+            print(f"OpenAI failed for '{lemma}': {openai_error}")
+            # OpenAI failed, try fallback for similar words or return not found
+            return {
+                "found": False,
+                "original": lemma,
+                "message": f"Translation for '{lemma}' is not available. Please check your spelling or try a different word.",
+                "suggestions": [],
+                "source": "error_fallback"
+            }
         
         # 检查OpenAI是否找到了有效的词汇
         if not openai_analysis:
@@ -96,6 +250,10 @@ class VocabularyService:
                 return word
         
         return None
+    
+    def _get_fallback_translation(self, lemma: str) -> Optional[Dict[str, Any]]:
+        """Get fallback translation from built-in dictionary"""
+        return self.fallback_translations.get(lemma)
 
     async def _save_word_to_database(
         self, 
@@ -129,6 +287,9 @@ class VocabularyService:
         translations_en = openai_analysis.get("translations_en", [])
         translations_zh = openai_analysis.get("translations_zh", [])
         
+        # Determine source (fallback or openai)
+        source = "fallback" if lemma.lower() in self.fallback_translations else "openai"
+        
         # 保存有效的英文翻译
         for trans in translations_en:
             if self._is_valid_translation(trans):
@@ -136,7 +297,7 @@ class VocabularyService:
                     lemma_id=word.id,
                     lang_code="en",
                     text=trans.strip(),
-                    source="openai"
+                    source=source
                 )
                 db.add(translation)
         
@@ -147,7 +308,7 @@ class VocabularyService:
                     lemma_id=word.id,
                     lang_code="zh",
                     text=trans.strip(),
-                    source="openai"
+                    source=source
                 )
                 db.add(translation)
         
@@ -197,14 +358,25 @@ class VocabularyService:
         
         if from_database:
             # 从数据库格式化
+            translations_en = [t.text for t in word.translations if t.lang_code == "en"]
+            translations_zh = [t.text for t in word.translations if t.lang_code == "zh"]
+            
+            # 如果数据库中没有翻译，尝试使用fallback
+            if not translations_en and not translations_zh:
+                fallback_data = self._get_fallback_translation(word.lemma.lower())
+                if fallback_data:
+                    translations_en = fallback_data.get("translations_en", [])
+                    translations_zh = fallback_data.get("translations_zh", [])
+            
             return {
+                "found": True,  # 重要：前端需要这个字段来显示词汇分析
                 "original": word.lemma,
                 "pos": word.pos,
                 "article": self._extract_article_from_notes(word.notes) if word.pos == "noun" else None,
-                "plural": None,  # TODO: 从数据库提取
+                "plural": self._extract_plural_from_notes(word.notes) if word.pos == "noun" else None,
                 "tables": self._format_verb_tables(word.forms) if word.pos == "verb" and word.forms else None,
-                "translations_en": [t.text for t in word.translations if t.lang_code == "en"],
-                "translations_zh": [t.text for t in word.translations if t.lang_code == "zh"],
+                "translations_en": translations_en,
+                "translations_zh": translations_zh,
                 "example": self._format_example(word.examples[0]) if word.examples else None,
                 "cached": True,
                 "source": "database"
@@ -212,6 +384,7 @@ class VocabularyService:
         else:
             # 使用OpenAI原始数据，但确保有original字段
             formatted_data = {
+                "found": openai_data.get("found", True),  # 来自OpenAI的数据应该已经包含found字段
                 "original": word.lemma,
                 "pos": openai_data.get("pos", "unknown"),
                 "article": openai_data.get("article"),
@@ -282,6 +455,22 @@ class VocabularyService:
             # 验证是有效的德语冠词
             if article.lower() in ["der", "die", "das"]:
                 return article.lower()
+        
+        return None
+    
+    def _extract_plural_from_notes(self, notes: Optional[str]) -> Optional[str]:
+        """从notes字段中提取复数形式"""
+        if not notes:
+            return None
+        
+        # 查找 plural:复数形式 格式
+        if "plural:" in notes:
+            plural_part = notes.split("plural:")[1].strip()
+            # 取第一个单词（去除可能的其他内容）
+            plural = plural_part.split()[0] if plural_part else ""
+            
+            if plural and len(plural) > 0:
+                return plural
         
         return None
 
