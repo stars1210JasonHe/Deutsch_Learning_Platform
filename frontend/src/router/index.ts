@@ -11,6 +11,7 @@ const ExamList = () => import('@/views/ExamList.vue')
 const ExamTake = () => import('@/views/ExamTake.vue')
 const SRSReview = () => import('@/views/SRSReview.vue')
 const Dashboard = () => import('@/views/Dashboard.vue')
+const Favorites = () => import('@/views/Favorites.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -36,6 +37,12 @@ const router = createRouter({
       path: '/history',
       name: 'SearchHistory',
       component: SearchHistory,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/favorites',
+      name: 'Favorites',
+      component: Favorites,
       meta: { requiresAuth: true }
     },
     

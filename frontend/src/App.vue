@@ -35,6 +35,9 @@
               <RouterLink to="/" class="nav-link">
                 🏠 Home
               </RouterLink>
+              <RouterLink to="/favorites" class="nav-link">
+                ⭐ Favorites
+              </RouterLink>
               <RouterLink to="/exams" class="nav-link">
                 📝 Exams
               </RouterLink>
@@ -84,6 +87,7 @@
     <div v-if="authStore.isAuthenticated" class="md:hidden glass-card mx-4 mt-4 p-4">
       <div class="flex justify-center space-x-4 text-sm">
         <RouterLink to="/" class="nav-link">🏠</RouterLink>
+        <RouterLink to="/favorites" class="nav-link">⭐</RouterLink>
         <RouterLink to="/exams" class="nav-link">📝</RouterLink>
         <RouterLink to="/srs" class="nav-link">🧠</RouterLink>
         <RouterLink to="/dashboard" class="nav-link">📊</RouterLink>

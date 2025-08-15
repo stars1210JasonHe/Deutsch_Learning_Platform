@@ -27,18 +27,27 @@ class ExamService:
         topics: List[str] = None,
         question_types: List[str] = None,
         question_count: int = 10,
-        title: str = None
+        title: str = None,
+        description: str = None
     ) -> Dict[str, Any]:
         """Generate a new exam using a template-first approach with OpenAI if available"""
         
-        if not topics:
-            topics = self._get_default_topics(level)
-        
-        if not question_types:
-            question_types = ["mcq", "cloze", "matching"]
-        
-        if not title:
-            title = f"German {level} Practice Exam"
+        # If description is provided, analyze it to extract focus areas
+        if description:
+            analysis = await self._analyze_exam_description(description, level)
+            if not topics:
+                topics = analysis.get('topics', self._get_default_topics(level))
+            if not question_types:
+                question_types = analysis.get('question_types', ["mcq", "cloze", "matching"])
+            if not title:
+                title = analysis.get('title', f"German {level} Custom Exam")
+        else:
+            if not topics:
+                topics = self._get_default_topics(level)
+            if not question_types:
+                question_types = ["mcq", "cloze", "matching"]
+            if not title:
+                title = f"German {level} Practice Exam"
         
         # Get vocabulary for this level from database
         vocabulary = await self._get_level_vocabulary(db, level)
@@ -50,6 +59,7 @@ class ExamService:
             question_types=question_types,
             count=question_count,
             vocabulary=vocabulary,
+            description=description
         )
 
         # Step 2: Generate exam questions from the template
@@ -73,6 +83,106 @@ class ExamService:
             "sections": await self._format_exam_for_frontend(exam)
         }
     
+    async def _analyze_exam_description(
+        self,
+        description: str,
+        level: str
+    ) -> Dict[str, Any]:
+        """Analyze user's exam description to extract focus areas and preferences"""
+        
+        if not getattr(self.openai_service, "client", None):
+            # Fallback: basic keyword extraction
+            return self._simple_description_analysis(description, level)
+        
+        prompt = f"""
+Analyze this exam request description for German language learning at CEFR {level} level:
+
+"{description}"
+
+Extract the key information and return ONLY JSON with this schema:
+{{
+  "title": "string - suggested exam title based on the description",
+  "topics": ["array", "of", "specific", "grammar", "topics", "or", "areas"],
+  "question_types": ["array", "of", "suitable", "question", "types"],
+  "focus_areas": ["array", "of", "specific", "skills", "to", "emphasize"],
+  "difficulty_emphasis": "string - areas where user wants extra challenge",
+  "suggested_question_count": number
+}}
+
+Available question types: mcq, cloze, matching, reorder, writing
+Common German topics: verbs, nouns, articles, adjectives, prepositions, cases, modal_verbs, past_tense, subjunctive, word_order, etc.
+
+Focus on the user's specific needs and weaknesses mentioned in the description.
+"""
+        
+        try:
+            response = await self.openai_service.complete_chat(prompt)
+            result = json.loads(response.strip())
+            
+            # Validate and set defaults
+            if 'topics' not in result or not result['topics']:
+                result['topics'] = self._get_default_topics(level)
+            if 'question_types' not in result or not result['question_types']:
+                result['question_types'] = ["mcq", "cloze", "matching"]
+            if 'title' not in result:
+                result['title'] = f"German {level} Custom Exam"
+                
+            return result
+            
+        except Exception as e:
+            logging.warning(f"Failed to analyze exam description with AI: {e}")
+            return self._simple_description_analysis(description, level)
+    
+    def _simple_description_analysis(self, description: str, level: str) -> Dict[str, Any]:
+        """Simple keyword-based description analysis as fallback"""
+        
+        desc_lower = description.lower()
+        
+        # Extract topics based on keywords
+        topic_keywords = {
+            'verbs': ['verb', 'conjugation', 'past tense', 'present', 'future'],
+            'cases': ['case', 'accusative', 'dative', 'genitive', 'nominative'],
+            'articles': ['article', 'der', 'die', 'das', 'ein', 'eine'],
+            'adjectives': ['adjective', 'comparative', 'superlative'],
+            'prepositions': ['preposition', 'with', 'zu', 'für', 'von'],
+            'modal_verbs': ['modal', 'können', 'müssen', 'wollen', 'sollen'],
+            'word_order': ['word order', 'sentence structure', 'syntax']
+        }
+        
+        detected_topics = []
+        for topic, keywords in topic_keywords.items():
+            if any(keyword in desc_lower for keyword in keywords):
+                detected_topics.append(topic)
+        
+        # Extract question type preferences
+        question_type_keywords = {
+            'mcq': ['multiple choice', 'choose', 'select'],
+            'cloze': ['fill', 'blank', 'gap', 'complete'],
+            'matching': ['match', 'pair', 'connect'],
+            'writing': ['write', 'compose', 'essay'],
+            'reorder': ['order', 'arrange', 'sequence']
+        }
+        
+        suggested_types = []
+        for qtype, keywords in question_type_keywords.items():
+            if any(keyword in desc_lower for keyword in keywords):
+                suggested_types.append(qtype)
+        
+        # Generate title from description
+        title_words = description.split()[:4]  # First few words
+        title = f"German {level} - {' '.join(title_words)}"
+        if len(title) > 50:
+            title = title[:47] + "..."
+        
+        return {
+            'title': title,
+            'topics': detected_topics if detected_topics else self._get_default_topics(level),
+            'question_types': suggested_types if suggested_types else ["mcq", "cloze", "matching"],
+            'focus_areas': detected_topics,
+            'difficulty_emphasis': "general",
+            'suggested_question_count': 10
+        }
+    
     async def _generate_exam_template(
         self,
         level: str,
@@ -80,6 +190,7 @@ class ExamService:
         question_types: List[str],
         count: int,
         vocabulary: List[Dict],
+        description: str = None
     ) -> Dict[str, Any]:
         """Create an exam blueprint template. Prefer OpenAI; fallback to deterministic template."""
 
@@ -109,9 +220,11 @@ class ExamService:
         vocab_sample = random.sample(vocabulary, min(len(vocabulary), 20))
         vocab_text = ", ".join([f"{w['lemma']} ({w['pos']})" for w in vocab_sample])
 
+        description_context = f"\n\nSpecial Requirements: {description}" if description else ""
+        
         prompt = f"""
 Design a blueprint TEMPLATE for a German exam at CEFR {level}. Use topics [{', '.join(topics)}] and question types [{', '.join(question_types)}].
-Use vocabulary context: {vocab_text}
+Use vocabulary context: {vocab_text}{description_context}
 
 Return ONLY JSON with this schema:
 {{

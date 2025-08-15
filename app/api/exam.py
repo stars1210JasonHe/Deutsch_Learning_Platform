@@ -19,6 +19,7 @@ router = APIRouter(prefix="/exam", tags=["exam"])
 # Pydantic models
 class ExamGenerateRequest(BaseModel):
     title: Optional[str] = None
+    description: Optional[str] = None  # New field for description-based generation
     level: str = "A1"
     topics: Optional[List[str]] = None
     question_types: Optional[List[str]] = None
@@ -59,7 +60,8 @@ async def generate_exam(
             topics=request.topics,
             question_types=request.question_types,
             question_count=request.question_count,
-            title=request.title
+            title=request.title,
+            description=request.description
         )
         
         return {

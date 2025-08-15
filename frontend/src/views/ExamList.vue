@@ -17,85 +17,156 @@
         <p class="text-gray-400">Create a personalized exam tailored to your learning level</p>
       </div>
 
-      <div class="grid md:grid-cols-2 gap-6 mb-6">
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">
-            📊 CEFR Level
-          </label>
-          <select v-model="examForm.level" class="input-field w-full">
-            <option value="A1">A1 - Beginner</option>
-            <option value="A2">A2 - Elementary</option>
-            <option value="B1">B1 - Intermediate</option>
-            <option value="B2">B2 - Upper Intermediate</option>
-            <option value="C1">C1 - Advanced</option>
-            <option value="C2">C2 - Mastery</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-gray-300 mb-2">
-            📝 Number of Questions
-          </label>
-          <select v-model="examForm.questionCount" class="input-field w-full">
-            <option :value="5">5 Questions (Quick)</option>
-            <option :value="10">10 Questions (Standard)</option>
-            <option :value="15">15 Questions (Extended)</option>
-            <option :value="20">20 Questions (Comprehensive)</option>
-          </select>
+      <!-- Creation Mode Toggle -->
+      <div class="mb-6">
+        <div class="flex justify-center space-x-4">
+          <button 
+            @click="examMode = 'simple'" 
+            :class="examMode === 'simple' ? 'btn-primary' : 'btn-secondary'"
+            class="flex items-center space-x-2"
+          >
+            <span>⚡</span>
+            <span>Quick Setup</span>
+          </button>
+          <button 
+            @click="examMode = 'custom'" 
+            :class="examMode === 'custom' ? 'btn-primary' : 'btn-secondary'"
+            class="flex items-center space-x-2"
+          >
+            <span>🎯</span>
+            <span>Custom Description</span>
+          </button>
         </div>
       </div>
 
-      <div class="mb-6">
-        <label class="block text-sm font-medium text-gray-300 mb-3">
-          🎯 Question Types
-        </label>
-        <div class="flex flex-wrap gap-3">
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input 
-              type="checkbox" 
-              v-model="examForm.questionTypes" 
-              value="mcq" 
-              class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
-            >
-            <span class="text-gray-300">Multiple Choice</span>
+      <!-- Custom Description Mode -->
+      <div v-if="examMode === 'custom'" class="space-y-6 mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-3">
+            🎯 Describe Your Exam Needs
           </label>
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input 
-              type="checkbox" 
-              v-model="examForm.questionTypes" 
-              value="cloze" 
-              class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
-            >
-            <span class="text-gray-300">Fill in the Blank</span>
-          </label>
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input 
-              type="checkbox" 
-              v-model="examForm.questionTypes" 
-              value="matching" 
-              class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
-            >
-            <span class="text-gray-300">Matching</span>
-          </label>
+          <textarea
+            v-model="examForm.description"
+            class="input-field w-full h-32 resize-none"
+            placeholder="Example: I want to focus on German verb conjugations, especially past tense forms. I'm struggling with modal verbs like 'können' and 'müssen'. Please include some fill-in-the-blank exercises and multiple choice questions about sentence structure."
+          ></textarea>
+          <div class="text-xs text-gray-400 mt-2">
+            📝 Describe your specific needs, weaknesses, or areas you want to focus on. The AI will create a tailored exam based on your description.
+          </div>
+        </div>
+        
+        <div class="grid md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              📊 CEFR Level
+            </label>
+            <select v-model="examForm.level" class="input-field w-full">
+              <option value="A1">A1 - Beginner</option>
+              <option value="A2">A2 - Elementary</option>
+              <option value="B1">B1 - Intermediate</option>
+              <option value="B2">B2 - Upper Intermediate</option>
+              <option value="C1">C1 - Advanced</option>
+              <option value="C2">C2 - Mastery</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              📝 Number of Questions (Optional)
+            </label>
+            <select v-model="examForm.questionCount" class="input-field w-full">
+              <option :value="5">5 Questions (Quick)</option>
+              <option :value="10">10 Questions (Standard)</option>
+              <option :value="15">15 Questions (Extended)</option>
+              <option :value="20">20 Questions (Comprehensive)</option>
+            </select>
+            <div class="text-xs text-gray-400 mt-1">AI can suggest optimal count</div>
+          </div>
         </div>
       </div>
 
-      <div class="mb-6">
-        <label class="block text-sm font-medium text-gray-300 mb-2">
-          🏷️ Exam Title (Optional)
-        </label>
-        <input 
-          v-model="examForm.title"
-          type="text" 
-          placeholder="My German Practice Exam"
-          class="input-field w-full"
-        >
+      <!-- Simple/Quick Mode -->
+      <div v-else class="space-y-6 mb-6">
+        <div class="grid md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              📊 CEFR Level
+            </label>
+            <select v-model="examForm.level" class="input-field w-full">
+              <option value="A1">A1 - Beginner</option>
+              <option value="A2">A2 - Elementary</option>
+              <option value="B1">B1 - Intermediate</option>
+              <option value="B2">B2 - Upper Intermediate</option>
+              <option value="C1">C1 - Advanced</option>
+              <option value="C2">C2 - Mastery</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-300 mb-2">
+              📝 Number of Questions
+            </label>
+            <select v-model="examForm.questionCount" class="input-field w-full">
+              <option :value="5">5 Questions (Quick)</option>
+              <option :value="10">10 Questions (Standard)</option>
+              <option :value="15">15 Questions (Extended)</option>
+              <option :value="20">20 Questions (Comprehensive)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-3">
+            🎯 Question Types
+          </label>
+          <div class="flex flex-wrap gap-3">
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                v-model="examForm.questionTypes" 
+                value="mcq" 
+                class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
+              >
+              <span class="text-gray-300">Multiple Choice</span>
+            </label>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                v-model="examForm.questionTypes" 
+                value="cloze" 
+                class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
+              >
+              <span class="text-gray-300">Fill in the Blank</span>
+            </label>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                v-model="examForm.questionTypes" 
+                value="matching" 
+                class="rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500"
+              >
+              <span class="text-gray-300">Matching</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-300 mb-2">
+            🏷️ Exam Title (Optional)
+          </label>
+          <input 
+            v-model="examForm.title"
+            type="text" 
+            placeholder="My German Practice Exam"
+            class="input-field w-full"
+          >
+        </div>
       </div>
 
       <div class="text-center">
         <button 
           @click="generateExam" 
-          :disabled="isGenerating || examForm.questionTypes.length === 0"
+          :disabled="isGenerating || !isFormValid"
           class="btn-primary px-8 py-3 text-lg"
         >
           <span v-if="isGenerating" class="flex items-center space-x-2">
@@ -186,7 +257,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -208,12 +279,24 @@ const exams = ref<Exam[]>([])
 const loading = ref(false)
 const isGenerating = ref(false)
 const error = ref('')
+const examMode = ref<'simple' | 'custom'>('simple')
 
 const examForm = ref({
   level: 'A1',
   questionCount: 10,
   questionTypes: ['mcq', 'cloze'],
-  title: ''
+  title: '',
+  description: ''
+})
+
+const isFormValid = computed(() => {
+  if (examMode.value === 'custom') {
+    // Custom mode requires description and level
+    return examForm.value.description.trim().length > 0
+  } else {
+    // Simple mode requires at least one question type
+    return examForm.value.questionTypes.length > 0
+  }
 })
 
 const API_BASE = 'http://localhost:8000'
@@ -258,9 +341,10 @@ const generateExam = async () => {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
-        title: examForm.value.title || `${examForm.value.level} Practice Exam`,
+        title: examForm.value.title || undefined,
+        description: examForm.value.description || undefined,
         level: examForm.value.level,
-        question_types: examForm.value.questionTypes,
+        question_types: examMode.value === 'simple' ? examForm.value.questionTypes : undefined,
         question_count: examForm.value.questionCount
       })
     })
@@ -273,6 +357,7 @@ const generateExam = async () => {
         
         // Reset form
         examForm.value.title = ''
+        examForm.value.description = ''
         
         // Show success message
         error.value = ''

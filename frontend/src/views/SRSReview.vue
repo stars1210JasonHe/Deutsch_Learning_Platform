@@ -57,8 +57,11 @@
         <!-- Card Content -->
         <div class="text-center">
           <div class="mb-6">
-            <div class="text-4xl font-bold text-white mb-4">
-              {{ currentCard.lemma }}
+            <div class="flex items-center justify-center space-x-4 mb-4">
+              <div class="text-4xl font-bold text-white">
+                {{ currentCard.lemma }}
+              </div>
+              <SpeechButton :text="currentCard.lemma" size="lg" />
             </div>
             <div class="text-sm text-gray-400 mb-2">
               {{ currentCard.pos }} • {{ currentCard.streak }} streak
@@ -76,25 +79,43 @@
           <div v-else class="mb-8 space-y-4">
             <div v-if="currentCard.translations_en.length > 0">
               <div class="text-sm text-gray-400 mb-1">English:</div>
-              <div class="text-lg text-aurora">
-                {{ currentCard.translations_en.join(', ') }}
+              <div class="flex items-center justify-center space-x-2">
+                <div class="text-lg text-aurora">
+                  {{ currentCard.translations_en.join(', ') }}
+                </div>
+                <SpeechButton :text="currentCard.translations_en.join(', ')" size="sm" lang="en-US" />
               </div>
             </div>
             
             <div v-if="currentCard.translations_zh.length > 0">
               <div class="text-sm text-gray-400 mb-1">Chinese:</div>
-              <div class="text-lg text-cosmic">
-                {{ currentCard.translations_zh.join(', ') }}
+              <div class="flex items-center justify-center space-x-2">
+                <div class="text-lg text-cosmic">
+                  {{ currentCard.translations_zh.join(', ') }}
+                </div>
+                <SpeechButton :text="currentCard.translations_zh.join(', ')" size="sm" lang="zh-CN" />
               </div>
             </div>
 
             <div v-if="currentCard.examples && currentCard.examples.length > 0">
               <div class="text-sm text-gray-400 mb-1">Example:</div>
-              <div class="text-gray-300 italic">
-                "{{ currentCard.examples[0].de }}"
+              <div class="flex items-center justify-center space-x-2 mb-2">
+                <div class="text-gray-300 italic">
+                  "{{ currentCard.examples[0].de }}"
+                </div>
+                <SpeechButton :text="currentCard.examples[0].de" size="sm" />
               </div>
-              <div class="text-sm text-gray-500">
-                {{ currentCard.examples[0].en }}
+              <div class="flex items-center justify-center space-x-2">
+                <div class="text-sm text-gray-500">
+                  {{ currentCard.examples[0].en }}
+                </div>
+                <SpeechButton v-if="currentCard.examples[0].en" :text="currentCard.examples[0].en" size="sm" lang="en-US" />
+              </div>
+              <div v-if="currentCard.examples[0].zh" class="flex items-center justify-center space-x-2 mt-1">
+                <div class="text-sm text-gray-500">
+                  {{ currentCard.examples[0].zh }}
+                </div>
+                <SpeechButton :text="currentCard.examples[0].zh" size="sm" lang="zh-CN" />
               </div>
             </div>
 
@@ -217,6 +238,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import SpeechButton from '@/components/SpeechButton.vue'
 
 const authStore = useAuthStore()
 
