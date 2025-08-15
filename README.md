@@ -1,6 +1,6 @@
 # Vibe Deutsch - German Learning Platform
 
-A comprehensive German learning platform with AI-powered vocabulary analysis, grammar display, and interactive learning features.
+A comprehensive German learning platform with AI-powered vocabulary analysis, persistent authentication, and intelligent learning features.
 
 ## ✨ Features
 
@@ -13,23 +13,49 @@ A comprehensive German learning platform with AI-powered vocabulary analysis, gr
 - 🎯 **SRS (Spaced Repetition)**: Intelligent review scheduling
 - ⚡ **Intelligent Caching**: Minimizes API costs with smart response caching
 - 📋 **Bulk Import**: Excel and PDF vocabulary import with auto-enhancement
+- 🔐 **Persistent Authentication**: Remember me for 90 days, automatic token refresh
+- 🐳 **Docker Ready**: One-click deployment on Synology NAS and other platforms
 
 ## 🛠 Tech Stack
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite
 - **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS  
 - **AI**: OpenAI API via OpenRouter
-- **Authentication**: JWT tokens
+- **Authentication**: JWT with refresh tokens and persistent sessions
 - **Package Management**: UV (Python) + npm (Frontend)
+- **Deployment**: Docker + Docker Compose
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Docker Deployment (Recommended)
+
+Perfect for Synology NAS, servers, or any Docker environment:
+
+```bash
+# Clone repository
+git clone https://github.com/stars1210JasonHe/Deutsch_Learning_Platform.git
+cd LanguageLearning
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your OpenAI API key
+
+# Deploy with Docker
+docker-compose up -d
+
+# Access at http://localhost:8000
+```
+
+📖 **For Synology NAS**: See [DEPLOY-SYNOLOGY.md](DEPLOY-SYNOLOGY.md) for detailed GUI setup instructions.
+
+### Option 2: Local Development
+
+#### Prerequisites
 - Python 3.10+
 - Node.js 18+
 - UV package manager: `pip install uv`
 
-### 1. Environment Setup
+#### 1. Environment Setup
 ```bash
 # Clone repository
 git clone https://github.com/stars1210JasonHe/Deutsch_Learning_Platform.git
@@ -40,7 +66,7 @@ cp .env.example .env
 # Edit .env with your OpenAI API key and configuration
 ```
 
-### 2. Backend Setup
+#### 2. Backend Setup
 ```bash
 # Install dependencies
 uv sync
@@ -49,7 +75,7 @@ uv sync
 uv run python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. Frontend Setup
+#### 3. Frontend Setup
 ```bash
 # Navigate to frontend directory
 cd frontend
@@ -61,7 +87,7 @@ npm install
 npm run dev
 ```
 
-### 4. Access Application
+#### 4. Access Application
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
@@ -88,8 +114,27 @@ LanguageLearning/
 ├── scripts/               # Utility scripts
 │   ├── fixes/            # Database repair scripts
 │   └── checks/           # Analysis scripts
-└── Screenshots/           # Documentation images
+├── Screenshots/           # Documentation images
+├── Dockerfile            # Docker build configuration
+├── docker-compose.yml    # Docker orchestration
+└── DEPLOY-SYNOLOGY.md    # Synology deployment guide
 ```
+
+## 🔐 Authentication & Security
+
+### Advanced Session Management
+- **Persistent Login**: Sessions survive browser restarts and network disconnections
+- **Remember Me**: Optional 90-day extended sessions
+- **Automatic Refresh**: Tokens refresh automatically before expiry
+- **Smart Recovery**: 401 errors trigger seamless token refresh
+- **HTTP Compatible**: Secure authentication over HTTP for local networks
+
+### Login Features
+- ✅ **24-hour standard sessions**
+- ✅ **90-day extended sessions** with "Remember me"
+- ✅ **Automatic token refresh** (refreshes 5 minutes before expiry)
+- ✅ **Network resilience** (handles connection drops gracefully)
+- ✅ **Multi-tab synchronization**
 
 ## 🔧 Key Features Detail
 
@@ -110,11 +155,49 @@ LanguageLearning/
 - **Duplicate Cleanup**: Intelligent merging of related word forms
 - **Quality Assurance**: Comprehensive validation and error correction
 
+## 🐳 Docker Deployment
+
+### Quick Deploy
+```bash
+# Build and start all services
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+### Environment Configuration
+Required environment variables in `.env`:
+```bash
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=openai/gpt-4o-mini
+DATABASE_URL=sqlite:///./data/app.db
+SECRET_KEY=your_32_character_secret_key
+```
+
+### Synology NAS Deployment
+1. **Install Container Manager** from Package Center
+2. **Upload project** to `/docker/vibe-deutsch/`
+3. **Configure environment** variables in Container Manager
+4. **Deploy with docker-compose.yml**
+5. **Access at** `http://your-nas-ip:8000`
+
+See [DEPLOY-SYNOLOGY.md](DEPLOY-SYNOLOGY.md) for detailed step-by-step instructions.
+
 ## 🔌 API Endpoints
 
 ### Authentication
 - `POST /auth/register` - User registration
-- `POST /auth/login` - User login
+- `POST /auth/login` - User login with remember me option
+- `POST /auth/refresh` - Refresh access token
+- `GET /auth/me` - Get current user info
 
 ### Word & Translation
 - `POST /translate/word` - Word lookup with AI fallback
@@ -157,6 +240,9 @@ uv run python tests/test_openai_functions.py
 
 # Test live API integration
 uv run python tests/test_live_api.py
+
+# Test authentication system
+uv run python tests/test_api_directly.py
 ```
 
 ## 🔧 Development Commands
@@ -182,24 +268,40 @@ uv run python scripts/fixes/generate_missing_examples.py
 - **Database Errors**: Ensure `data/` directory exists and is writable
 - **Frontend Build Issues**: Clear cache with `rm -rf frontend/node_modules && npm install`
 - **CORS Issues**: Backend CORS settings in `app/main.py`, frontend proxy in `vite.config.ts`
+- **Session Timeout**: Check token refresh logs, verify refresh token endpoint
 
-### Environment Variables
-Required in `.env`:
+### Docker Issues
+- **Container Won't Start**: Check logs with `docker-compose logs`
+- **Port Conflicts**: Modify ports in `docker-compose.yml`
+- **Volume Permissions**: Ensure data directory has correct permissions
+- **Memory Issues**: Increase container memory limits for large vocabulary imports
+
+### Authentication Debugging
 ```bash
-OPENAI_API_KEY=your_api_key
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
-OPENAI_MODEL=openai/gpt-4o-mini
-DATABASE_URL=sqlite:///./data/app.db
-SECRET_KEY=your_jwt_secret
+# Check token status in browser console
+localStorage.getItem('token')
+localStorage.getItem('refreshToken')
+localStorage.getItem('tokenExpiry')
+
+# Backend token verification
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/auth/me
 ```
 
-## 🤝 Contributing
+## 🚀 Production Deployment
 
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open Pull Request
+### Security Checklist
+- [ ] Change default `SECRET_KEY` in production
+- [ ] Use strong OpenAI API key
+- [ ] Configure firewall rules for port 8000
+- [ ] Set up SSL/TLS if exposing to internet
+- [ ] Regular database backups
+- [ ] Monitor authentication logs
+
+### Performance Optimization
+- **Database**: Use SSD storage for better performance
+- **Memory**: Allocate 1-2GB RAM for optimal performance
+- **Network**: Use CDN for static assets in production
+- **Caching**: OpenAI responses cached automatically
 
 ## 📄 License
 
@@ -209,4 +311,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - OpenAI for language model capabilities
 - Vue.js and FastAPI communities for excellent frameworks
+- Docker for containerization technology
+- Synology for NAS platform compatibility
 - German language learning community for inspiration and feedback
+
+---
+
+🎉 **Ready to learn German?** Deploy with Docker and start your language journey!
