@@ -1,249 +1,212 @@
-Vibe Deutsch – German Learning Platform
+# Vibe Deutsch - German Learning Platform
 
-Overview
+A comprehensive German learning platform with AI-powered vocabulary analysis, grammar display, and interactive learning features.
 
-Vibe Deutsch is a German learning platform featuring:
-- Word search with database-first lookup, OpenAI fallback, and caching
-- Sentence translation with word-by-word gloss
-- Search history, exam system, and spaced repetition (SRS)
-- Modern Vue 3 frontend with Vite + Pinia + Tailwind
-- FastAPI backend with SQLAlchemy + SQLite
+## ✨ Features
 
-Tech Stack
+- 🔍 **Smart Word Search**: Database-first lookup with OpenAI fallback for unknown words
+- 📚 **Complete Grammar Display**: Articles, plurals, verb conjugations across all tenses  
+- 🌐 **Multi-language Support**: German, English, and Chinese translations
+- 📝 **Interactive Exams**: Fill-in-the-blank, multiple choice, and spaced repetition
+- ⭐ **Favorites System**: Save words for focused study
+- 📊 **Progress Tracking**: Search history and learning analytics
+- 🎯 **SRS (Spaced Repetition)**: Intelligent review scheduling
+- ⚡ **Intelligent Caching**: Minimizes API costs with smart response caching
+- 📋 **Bulk Import**: Excel and PDF vocabulary import with auto-enhancement
 
-- Backend: Python, FastAPI, SQLAlchemy, SQLite
-- AI: OpenAI/OpenRouter via `openai` SDK (async)
-- Frontend: Vue 3, Vite, Pinia, Tailwind CSS
+## 🛠 Tech Stack
 
-Key Features
+- **Backend**: FastAPI + SQLAlchemy + SQLite
+- **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS  
+- **AI**: OpenAI API via OpenRouter
+- **Authentication**: JWT tokens
+- **Package Management**: UV (Python) + npm (Frontend)
 
-- Database-first word lookup; if not found, analyze via OpenAI and persist
-- Suggestions when input is not a valid German word (user can pick one and continue)
-- Sentence translation with gloss (DE/EN/ZH)
-- Caching and search history
+## 🚀 Quick Start
 
-Getting Started
-
-Prerequisites
-
+### Prerequisites
 - Python 3.10+
 - Node.js 18+
-- uv (Python package manager) – optional but recommended
+- UV package manager: `pip install uv`
 
-Environment
-
-1) Create and configure `.env` at the project root (do NOT commit it). You can use ` - Copy.env` as a template.
-   - Required keys:
-     - OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL
-     - DATABASE_URL (defaults to `sqlite:///./data/app.db`)
-
-Install & Run – Backend
-
-1) Install Python deps (using uv):
-   uv sync
-
-2) Start the API:
-   uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-
-The database tables are created on startup. Logs are written to `uvicorn.out/err` when applicable.
-
-Install & Run – Frontend
-
-1) Install deps:
-   cd frontend
-   npm install
-
-2) Start dev server:
-   npm run dev
-
-Vite dev server runs at http://localhost:3000 and proxies `/api/*` to the backend (see `vite.config.ts`).
-
-Core API Endpoints
-
-- Auth
-  - POST `/auth/register`
-  - POST `/auth/login`
-- Translation / Search
-  - POST `/translate/word` – database-first, OpenAI fallback
-  - POST `/translate/word/select` – pick a suggested word and analyze it
-  - POST `/translate/sentence` – sentence translation with gloss
-  - GET  `/search/history` – recent searches
-
-Search Behavior
-
-1) Word search:
-   - Look up in DB → if found, return immediately
-   - If not found, call OpenAI to analyze and save to DB
-   - If the input is not a valid German word, API returns `found=false` with up to 5 suggestions
-2) Sentence translation:
-   - Uses OpenAI; responses are cached
-
-Scripts
-
-- Data import and utilities are in `scripts/` and top-level helpers like `import_excel_vocabulary.py`, `preview_excel.py`, etc.
-
-Testing
-
-- Backend quick tests:
-  uv run python -m pytest -q
-- Or project runner:
-  uv run python run_tests.py
-
-Troubleshooting
-
-- 401 from OpenAI/OpenRouter: check `.env` (API key / base URL / model)
-- Frontend build errors (Vue template): ensure all tags are properly closed
-- CORS: frontend uses Vite proxy; backend CORS settings are in `app/main.py`
-
-Repository Hygiene
-
-- Secrets: `.env` must never be committed
-- Local artifacts: database files and node_modules should be ignored (see `.gitignore`)
-
-License
-
-Add your preferred license here.
-
-# Vibe Deutsch - OpenAI-powered German Learning Platform
-
-A modern German learning platform with intelligent caching, word analysis, and creative learning modules.
-
-## Features (MVP)
-- 🔍 Smart word search with OpenAI integration and caching
-- 📖 DWDS-style dictionary with morphology tables
-- 🌐 Multi-language translator (DE/EN/ZH)
-- 📝 Search history tracking for personalized learning
-- 🔐 JWT authentication system
-- ⚡ Intelligent response caching to minimize API costs
-- 📊 Excel vocabulary import with auto-completion of missing forms
-- 🧠 Automatic verb conjugation and noun declension using OpenAI
-
-## Tech Stack
-- **Backend**: FastAPI + SQLAlchemy + SQLite
-- **Frontend**: Vue 3 + Vite + TypeScript + TailwindCSS
-- **AI**: OpenAI API (GPT-4o-mini)
-- **Auth**: JWT tokens
-
-## Setup (Windows with UV)
-
-1. **Install UV** (if not already installed):
+### 1. Environment Setup
 ```bash
-pip install uv
-```
-
-2. **Clone and setup**:
-```bash
-git clone <your-repo>
+# Clone repository
+git clone https://github.com/stars1210JasonHe/Deutsch_Learning_Platform.git
 cd LanguageLearning
+
+# Create environment file
+cp .env.example .env
+# Edit .env with your OpenAI API key and configuration
 ```
 
-3. **Create virtual environment and install dependencies**:
+### 2. Backend Setup
 ```bash
-uv venv
-.venv\Scripts\activate
-uv pip install -e .
+# Install dependencies
+uv sync
+
+# Start backend server  
+uv run python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-4. **Environment setup**:
+### 3. Frontend Setup
 ```bash
-copy .env.example .env
-# Edit .env with your OpenAI API key
-```
-
-5. **Initialize database**:
-```bash
-mkdir data
-python -m app.db.init_db
-```
-
-6. **Import vocabulary from Excel files** (Optional):
-```bash
-# Double-click import_vocabulary.bat or run:
-import_vocabulary.bat
-```
-
-7. **Run backend**:
-```bash
-# Double-click start.bat or run:
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-8. **Run frontend** (in another terminal):
-```bash
+# Navigate to frontend directory
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
 ```
 
-## API Documentation
-After starting the backend, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+### 4. Access Application
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
 
-## Project Structure
+## 📁 Project Structure
+
 ```
-/app
-  /api          # API endpoints
-  /core         # Config, security, dependencies
-  /models       # SQLAlchemy models
-  /schemas      # Pydantic schemas
-  /services     # Business logic
-  /db           # Database setup
-/frontend       # Vue 3 application
-/data           # SQLite database and uploads
+LanguageLearning/
+├── app/                    # FastAPI backend
+│   ├── api/               # API endpoints
+│   ├── core/              # Configuration & security
+│   ├── db/                # Database setup
+│   ├── models/            # SQLAlchemy models
+│   ├── schemas/           # Pydantic schemas
+│   └── services/          # Business logic
+├── frontend/              # Vue 3 application
+│   ├── src/
+│   │   ├── components/    # Reusable components
+│   │   ├── views/         # Page components
+│   │   ├── stores/        # Pinia state management
+│   │   └── router/        # Vue Router setup
+├── data/                  # SQLite database files
+├── tests/                 # Test scripts
+├── scripts/               # Utility scripts
+│   ├── fixes/            # Database repair scripts
+│   └── checks/           # Analysis scripts
+└── Screenshots/           # Documentation images
 ```
 
-## Vocabulary Import from Excel
+## 🔧 Key Features Detail
 
-The system supports importing German vocabulary from Excel files with automatic enhancement:
+### Word Search & Analysis
+- **Database Priority**: Instant lookup from local vocabulary database
+- **AI Enhancement**: Unknown words analyzed via OpenAI with grammatical information
+- **Smart Suggestions**: Non-German inputs get 5 relevant German word suggestions
+- **Complete Grammar**: Articles (der/die/das), plurals, and full verb conjugation tables
 
-### Supported Excel Format
-The importer expects Excel files with these columns:
-- **German Word**: The German vocabulary (e.g., "der Tisch")
-- **Article**: Article only (der/die/das)
-- **Noun Only**: Base noun form
-- **Translation**: English translation
-- **Example Sentence**: German example sentence
-- **Classification**: Word category/topic
+### Exam System
+- **Multiple Formats**: Fill-in-the-blank, multiple choice, translation exercises
+- **Adaptive Difficulty**: Questions adjust based on performance
+- **Progress Tracking**: Detailed analytics and improvement metrics
+
+### Vocabulary Management
+- **Excel Import**: Bulk import from structured Excel files
+- **Auto-Enhancement**: Missing translations, examples, and grammar auto-generated
+- **Duplicate Cleanup**: Intelligent merging of related word forms
+- **Quality Assurance**: Comprehensive validation and error correction
+
+## 🔌 API Endpoints
+
+### Authentication
+- `POST /auth/register` - User registration
+- `POST /auth/login` - User login
+
+### Word & Translation
+- `POST /translate/word` - Word lookup with AI fallback
+- `POST /translate/sentence` - Sentence translation with gloss
+- `POST /translate/word/select` - Select from AI suggestions
+
+### Learning Features  
+- `GET /search/history` - Search history
+- `GET /favorites` - Saved words
+- `POST /exam/generate` - Create practice exam
+- `GET /srs/review` - Spaced repetition cards
+
+## 📚 Vocabulary Import
+
+### Supported Formats
+- **Excel Files**: `.xlsx` with German, English, Chinese columns
+- **PDF Files**: German vocabulary lists with auto-extraction
 
 ### Import Process
-1. **Place Excel files** in the root directory with names like:
-   - `german_vocabulary_A1_sample.xlsx`
-   - `german_vocabulary_A2_sample.xlsx`
-   - `german_vocabulary_B1_sample.xlsx`
-
-2. **Run import**: `import_vocabulary.bat`
-
-3. **Auto-enhancement**: For each imported word, the system:
-   - Adds Chinese translations using OpenAI
-   - Generates complete verb conjugation tables
-   - Creates noun declension forms
-   - Validates and enhances existing data
-
-### Manual Import Commands
 ```bash
-# Preview Excel structure
-python preview_excel.py
+# Import Excel vocabulary
+uv run python scripts/import_excel_vocabulary.py
 
-# Import with limit (for testing)
-python scripts/improved_excel_importer.py
+# Import from PDF  
+uv run python scripts/pdf_vocabulary_importer.py
 
-# Check database statistics
-python scripts/vocabulary_manager.py stats
+# Auto-fix incomplete entries
+uv run python scripts/fixes/enhanced_database_fixer.py --mode all
 ```
 
-## Development Commands
+## 🧪 Testing
+
 ```bash
-# Run with auto-reload
-uvicorn app.main:app --reload
+# Run all tests
+uv run python tests/run_tests.py
 
-# Run tests
-pytest
+# Test specific functionality
+uv run python tests/test_api_endpoints.py
+uv run python tests/test_openai_functions.py
 
-# Format code
-black app/
-isort app/
-
-# Type checking
-mypy app/
+# Test live API integration
+uv run python tests/test_live_api.py
 ```
+
+## 🔧 Development Commands
+
+```bash
+# Database analysis
+uv run python scripts/checks/inspect_database.py
+
+# Check for incomplete entries  
+uv run python scripts/checks/check_incomplete_words.py
+
+# Fix database issues
+uv run python scripts/fixes/enhanced_database_fixer.py
+
+# Generate missing examples
+uv run python scripts/fixes/generate_missing_examples.py
+```
+
+## ⚠️ Troubleshooting
+
+### Common Issues
+- **401 OpenAI Error**: Check `.env` file for correct API key and base URL
+- **Database Errors**: Ensure `data/` directory exists and is writable
+- **Frontend Build Issues**: Clear cache with `rm -rf frontend/node_modules && npm install`
+- **CORS Issues**: Backend CORS settings in `app/main.py`, frontend proxy in `vite.config.ts`
+
+### Environment Variables
+Required in `.env`:
+```bash
+OPENAI_API_KEY=your_api_key
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=openai/gpt-4o-mini
+DATABASE_URL=sqlite:///./data/app.db
+SECRET_KEY=your_jwt_secret
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🙏 Acknowledgments
+
+- OpenAI for language model capabilities
+- Vue.js and FastAPI communities for excellent frameworks
+- German language learning community for inspiration and feedback
