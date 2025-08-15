@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  vibe-deutsch:
+    build: .
+    container_name: vibe-deutsch
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/app.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      - OPENAI_MODEL=${OPENAI_MODEL:-openai/gpt-4o-mini}
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      # Persistent database storage
+      - ./data:/app/data
+      # Optional: Mount config files
+      - ./.env:/app/.env:ro
+    # Optimized for 10GB RAM system
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - vibe-deutsch-network
+
+networks:
+  vibe-deutsch-network:
+    driver: bridge
