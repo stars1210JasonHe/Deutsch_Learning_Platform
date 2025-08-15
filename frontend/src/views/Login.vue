@@ -26,6 +26,18 @@
           >
         </div>
         
+        <div class="flex items-center">
+          <input 
+            v-model="rememberMe"
+            type="checkbox" 
+            id="remember-me"
+            class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+          >
+          <label for="remember-me" class="ml-2 block text-sm text-gray-700">
+            Remember me for 90 days
+          </label>
+        </div>
+        
         <div v-if="error" class="text-red-600 text-sm">
           {{ error }}
         </div>
@@ -61,6 +73,7 @@ const authStore = useAuthStore()
 
 const email = ref('')
 const password = ref('')
+const rememberMe = ref(false)
 const error = ref('')
 const isLoading = ref(false)
 
@@ -71,7 +84,8 @@ const handleLogin = async () => {
   try {
     const result = await authStore.login({
       email: email.value,
-      password: password.value
+      password: password.value,
+      remember_me: rememberMe.value
     })
     
     if (!result.success) {
