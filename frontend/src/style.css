@@ -244,6 +244,71 @@
   .nav-link.active {
     color: var(--space-cyan);
   }
+
+  /* White Background Fixes - Better Text Contrast */
+  .bg-white .text-gray-600 {
+    color: #374151 !important; /* gray-700 */
+  }
+
+  .bg-white .text-gray-500 {
+    color: #4B5563 !important; /* gray-600 */
+  }
+
+  .bg-white .text-gray-400 {
+    color: #6B7280 !important; /* gray-500 */
+  }
+
+  /* Ensure readable text on white cards */
+  .bg-white {
+    color: #1f2937 !important; /* gray-800 */
+  }
+
+  .bg-white h1,
+  .bg-white h2, 
+  .bg-white h3,
+  .bg-white h4,
+  .bg-white h5,
+  .bg-white h6 {
+    color: #111827 !important; /* gray-900 */
+  }
+
+  .bg-white p {
+    color: #1F2937 !important; /* gray-800 */
+  }
+
+  .bg-white .text-gray-300 {
+    color: #4B5563 !important; /* gray-600 */
+  }
+
+  /* Gray backgrounds need darker text too */
+  .bg-gray-50 .text-gray-600 {
+    color: #1F2937 !important; /* gray-800 */
+  }
+
+  .bg-gray-50 .text-gray-500 {
+    color: #374151 !important; /* gray-700 */
+  }
+
+  .bg-blue-50 .text-gray-800 {
+    color: #111827 !important; /* gray-900 */
+  }
+
+  /* Exam Reorder Questions */
+  .reorder-item {
+    @apply transition-all duration-200;
+  }
+
+  .reorder-item:hover {
+    @apply scale-105 shadow-lg;
+  }
+
+  .reorder-item.dragging {
+    @apply opacity-50 scale-95;
+  }
+
+  .reorder-item.drag-over {
+    @apply border-blue-400 bg-blue-500/20;
+  }
 }
 
 /* Scrollbar Styling */
