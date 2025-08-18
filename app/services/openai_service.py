@@ -28,11 +28,17 @@ class OpenAIService:
             logging.info(f"Analyzing word '{word}' using {settings.openai_base_url}")
             
             prompt = f"""
-        Analyze the word "{word}" and return a JSON response.
+        IMPORTANT: Analyze the EXACT word "{word}" as provided. Do not auto-correct or substitute it with similar words.
 
-        If "{word}" is a valid German word (including plural forms, conjugated verbs, etc.), return this structure:
+        First, determine if "{word}" is a valid German word (exact match only):
+        - Check if it's a valid German lemma, inflected form, or compound word
+        - Do NOT consider it valid if it's just similar to a German word
+        - Do NOT auto-correct spelling mistakes
+
+        If "{word}" is EXACTLY a valid German word, return:
         {{
             "found": true,
+            "input_word": "{word}",
             "pos": "verb|noun|adjective|adverb|preposition|article|pronoun|other",
             "lemma": "base form" (if different from input),
             "article": "der|die|das" (only for nouns, null otherwise),
@@ -48,9 +54,10 @@ class OpenAIService:
             "example": {{"de": "German sentence", "en": "English sentence", "zh": "中文句子"}}
         }}
         
-        If "{word}" is NOT a valid German word, return this structure:
+        If "{word}" is NOT a valid German word (including typos, non-German words, gibberish), return:
         {{
             "found": false,
+            "input_word": "{word}",
             "suggestions": [
                 {{"word": "similar_word1", "pos": "noun", "meaning": "brief explanation"}},
                 {{"word": "similar_word2", "pos": "verb", "meaning": "brief explanation"}},
@@ -61,7 +68,10 @@ class OpenAIService:
             "message": "'{word}' is not a recognized German word. Here are some similar words you might be looking for:"
         }}
         
-        For suggestions, prioritize words that are phonetically or semantically similar to the input.
+        Examples:
+        - "nim" → found: false (not a valid German word, suggest "nehmen")
+        - "gehe" → found: true (valid inflected form of "gehen")
+        - "xyz123" → found: false (gibberish)
         """
         
             response = await self.client.chat.completions.create(
