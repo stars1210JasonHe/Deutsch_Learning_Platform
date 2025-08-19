@@ -47,7 +47,9 @@ class OpenAIService:
                 "praesens": {{"ich": "form", "du": "form", "er_sie_es": "form", "wir": "form", "ihr": "form", "sie_Sie": "form"}},
                 "praeteritum": {{"ich": "form", "du": "form", "er_sie_es": "form", "wir": "form", "ihr": "form", "sie_Sie": "form"}},
                 "perfekt": {{"aux": "haben|sein", "partizip_ii": "form", "ich": "habe/bin + partizip", "er_sie_es": "hat/ist + partizip"}},
-                "futur1": {{"ich": "werde form", "du": "wirst form", "er_sie_es": "wird form", "wir": "werden form", "ihr": "werdet form", "sie_Sie": "werden form"}}
+                "plusquamperfekt": {{"ich": "hatte/war + partizip", "du": "hattest/warst + partizip", "er_sie_es": "hatte/war + partizip", "wir": "hatten/waren + partizip", "ihr": "hattet/wart + partizip", "sie_Sie": "hatten/waren + partizip"}},
+                "futur1": {{"ich": "werde form", "du": "wirst form", "er_sie_es": "wird form", "wir": "werden form", "ihr": "werdet form", "sie_Sie": "werden form"}},
+                "imperativ": {{"du": "imperative_form", "ihr": "imperative_form", "Sie": "imperative_form"}}
             }} (only for verbs, null otherwise),
             "translations_en": ["translation1", "translation2"],
             "translations_zh": ["翻译1", "翻译2"],

@@ -371,6 +371,25 @@
               </div>
             </div>
           </div>
+
+          <!-- Imperativ (Commands) - moved to main grid with red styling -->
+          <div v-if="result.tables && result.tables.imperativ" class="border rounded-lg p-4 bg-red-50 border-red-200">
+            <h4 class="font-medium text-red-800 mb-3">Imperativ (Commands)</h4>
+            <div class="space-y-2 text-sm">
+              <div v-if="result.tables.imperativ.du" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">du</span>
+                <span class="font-medium text-red-900">{{ result.tables.imperativ.du }}</span>
+              </div>
+              <div v-if="result.tables.imperativ.ihr" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ihr</span>
+                <span class="font-medium text-red-900">{{ result.tables.imperativ.ihr }}</span>
+              </div>
+              <div v-if="result.tables.imperativ.Sie" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">Sie</span>
+                <span class="font-medium text-red-900">{{ result.tables.imperativ.Sie }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Subjunctive Forms (if available) -->
@@ -441,27 +460,6 @@
           </div>
         </div>
 
-        <!-- Imperative Forms (if available) -->
-        <div v-if="result.tables.imperativ" class="space-y-4">
-          <h4 class="font-medium text-gray-700 mt-6 mb-3">Imperative Forms</h4>
-          <div class="border rounded-lg p-4 bg-teal-50 border-teal-200">
-            <h5 class="font-medium text-teal-800 mb-3">Imperativ (Commands)</h5>
-            <div class="space-y-2 text-sm">
-              <div v-if="result.tables.imperativ.du" class="flex justify-between">
-                <span class="text-gray-600 w-20 font-medium">du</span>
-                <span class="font-medium text-teal-900">{{ result.tables.imperativ.du }}</span>
-              </div>
-              <div v-if="result.tables.imperativ.ihr" class="flex justify-between">
-                <span class="text-gray-600 w-20 font-medium">ihr</span>
-                <span class="font-medium text-teal-900">{{ result.tables.imperativ.ihr }}</span>
-              </div>
-              <div v-if="result.tables.imperativ.Sie" class="flex justify-between">
-                <span class="text-gray-600 w-20 font-medium">Sie</span>
-                <span class="font-medium text-teal-900">{{ result.tables.imperativ.Sie }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       
       <!-- Example Sentence -->
