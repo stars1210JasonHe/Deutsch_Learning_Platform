@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     remember_me_expire_days: int = 90  # 90 days for "remember me"
     
     # CORS
-    allowed_hosts: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    allowed_hosts: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"]
     
     # Development
     debug: bool = False

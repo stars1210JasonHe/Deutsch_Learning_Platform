@@ -62,7 +62,7 @@ async def translate_word_enhanced(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Enhanced word analysis with forced enrichment option"""
+    """Enhanced word analysis with similarity scores, cross-language support, and multiple results"""
     
     query_text = request.input.strip()
     

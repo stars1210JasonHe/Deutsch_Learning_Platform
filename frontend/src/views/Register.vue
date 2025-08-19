@@ -5,6 +5,17 @@
       
       <form @submit.prevent="handleRegister" class="space-y-4">
         <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+          <input 
+            v-model="username"
+            type="text" 
+            required
+            class="input-field w-full"
+            placeholder="Choose a username"
+          >
+        </div>
+        
+        <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
           <input 
             v-model="email"
@@ -71,6 +82,7 @@ import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
 
+const username = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
@@ -94,6 +106,7 @@ const handleRegister = async () => {
   
   try {
     const result = await authStore.register({
+      username: username.value,
       email: email.value,
       password: password.value
     })

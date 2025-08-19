@@ -502,14 +502,14 @@ class VocabularyService:
         
         # 基础验证
         if not analysis or not isinstance(analysis, dict):
-            print(f"❌ 验证失败: 分析结果为空或格式错误 - {original_query}")
+            print(f"ERROR: Validation failed: Analysis result empty or invalid format - {original_query}")
             return False
         
         # 验证词性
         pos = analysis.get("pos", "").strip()
         valid_pos = ["noun", "verb", "adjective", "adverb", "interjection", "pronoun", "preposition", "conjunction", "article", "other"]
         if not pos or pos not in valid_pos:
-            print(f"❌ 验证失败: 无效的词性 '{pos}' - {original_query}")
+            print(f"ERROR: Validation failed: Invalid POS '{pos}' - {original_query}")
             return False
         
         # 验证翻译 - 至少要有一个有效的翻译
@@ -520,10 +520,10 @@ class VocabularyService:
         valid_zh_count = sum(1 for trans in translations_zh if self._is_valid_translation(trans))
         
         if valid_en_count == 0 and valid_zh_count == 0:
-            print(f"❌ 验证失败: 没有有效的翻译 - {original_query}")
+            print(f"ERROR: Validation failed: No valid translations - {original_query}")
             return False
         
-        print(f"✅ 验证通过: {original_query} ({pos}) - EN: {valid_en_count}, ZH: {valid_zh_count}")
+        print(f"SUCCESS: Validation passed: {original_query} ({pos}) - EN: {valid_en_count}, ZH: {valid_zh_count}")
         return True
 
     def _is_valid_translation(self, translation: Any) -> bool:

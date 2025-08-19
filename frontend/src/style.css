@@ -49,6 +49,7 @@
       radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.1) 0%, transparent 50%),
       radial-gradient(circle at 40% 80%, rgba(0, 201, 219, 0.1) 0%, transparent 50%);
     animation: cosmic-drift 20s ease-in-out infinite alternate;
+    pointer-events: none; /* Fix: Don't block clicks on background */
   }
 
   @keyframes cosmic-drift {
@@ -61,7 +62,8 @@
     position: absolute;
     width: 100%;
     height: 100%;
-    pointer-events: none;
+    pointer-events: none; /* Already set correctly */
+    z-index: 1; /* Keep behind content */
   }
 
   .star {
@@ -82,6 +84,8 @@
   .glass-card {
     @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    position: relative;
+    z-index: 10; /* Ensure content is above background */
   }
 
   .glass-nav {
@@ -144,6 +148,23 @@
 
   .input-field::placeholder {
     color: var(--space-light-gray);
+  }
+
+  /* Fix input text color on white backgrounds */
+  .bg-white .input-field {
+    background-color: #F9FAFB; /* gray-50 */
+    border-color: #D1D5DB; /* gray-300 */
+    color: #111827; /* gray-900 */
+  }
+
+  .bg-white .input-field:focus {
+    background-color: #FFFFFF; /* white */
+    border-color: #3B82F6; /* blue-500 */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .bg-white .input-field::placeholder {
+    color: #6B7280; /* gray-500 */
   }
 
   /* Status Badges */
@@ -261,6 +282,8 @@
   /* Ensure readable text on white cards */
   .bg-white {
     color: #1f2937 !important; /* gray-800 */
+    position: relative;
+    z-index: 20; /* Ensure white cards are above everything */
   }
 
   .bg-white h1,

@@ -52,3 +52,8 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "version": "1.0.0"}
+
+
+@app.get("/debug/cors")
+async def debug_cors():
+    return {"allowed_hosts": settings.allowed_hosts}

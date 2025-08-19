@@ -36,7 +36,7 @@ class EnhancedVocabularyService(VocabularyService):
             sanitized_data = self.sanitize_for_json(data)
             return json.dumps(sanitized_data, ensure_ascii=False)
         except (TypeError, ValueError) as e:
-            print(f"   ⚠️ JSON序列化失败: {e}")
+            print(f"   WARNING: JSON serialization failed: {e}")
             # 如果序列化失败，返回一个空的JSON对象
             return "{}"
     
@@ -54,7 +54,7 @@ class EnhancedVocabularyService(VocabularyService):
             # 暂时直接使用父类的方法，避免数据库schema不匹配问题
             return await self.get_or_create_word(db, lemma, user)
         except Exception as e:
-            print(f"❌ Enhanced word lookup failed for '{lemma}': {e}")
+            print(f"ERROR: Enhanced word lookup failed for '{lemma}': {e}")
             # 如果失败，尝试简单的回退逻辑
             try:
                 # 查找现有单词
@@ -73,7 +73,7 @@ class EnhancedVocabularyService(VocabularyService):
                         "source": "fallback_response"
                     }
             except Exception as fallback_error:
-                print(f"❌ Fallback also failed for '{lemma}': {fallback_error}")
+                print(f"ERROR: Fallback also failed for '{lemma}': {fallback_error}")
                 return {
                     "found": False,
                     "original": lemma,
@@ -408,7 +408,7 @@ class EnhancedVocabularyService(VocabularyService):
                 return await self._find_enhanced_word(db, lemma)
         
         except Exception as e:
-            print(f"❌ 在线补全失败: {e}")
+            print(f"ERROR: Online completion failed: {e}")
         
         return word_data
     
