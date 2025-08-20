@@ -2,6 +2,17 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
 
+export interface WordChoice {
+  lemma_id: number
+  lemma: string
+  pos: string
+  display_name: string
+  pos_display: string
+  translations_en: string[]
+  translations_zh: string[]
+  preview: string
+}
+
 interface WordAnalysis {
   original: string
   found?: boolean
@@ -24,6 +35,11 @@ interface WordAnalysis {
     meaning: string
   }>
   message?: string
+  // Multiple choice fields
+  multiple_choices?: boolean
+  choices?: WordChoice[]
+  choice_count?: number
+  original_query?: string
 }
 
 interface SentenceTranslation {
@@ -113,6 +129,23 @@ export const useSearchStore = defineStore('search', () => {
       isLoading.value = false
     }
   }
+
+  const selectWordChoice = async (lemmaId: number, originalQuery: string) => {
+    isLoading.value = true
+    try {
+      const response = await axios.post('/api/translate/word/choice', { 
+        lemma_id: lemmaId,
+        original_query: originalQuery
+      })
+      lastWordResult.value = response.data
+      return response.data
+    } catch (error: any) {
+      console.error('Word choice selection failed:', error)
+      throw new Error(error.response?.data?.detail || 'Selection failed')
+    } finally {
+      isLoading.value = false
+    }
+  }
   
   return {
     isLoading,
@@ -123,6 +156,7 @@ export const useSearchStore = defineStore('search', () => {
     translateSentence,
     getSearchHistory,
     deleteHistoryItem,
-    selectSuggestedWord
+    selectSuggestedWord,
+    selectWordChoice
   }
 })

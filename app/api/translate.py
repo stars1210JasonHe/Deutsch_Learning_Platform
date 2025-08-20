@@ -19,6 +19,11 @@ class SelectSuggestionRequest(BaseModel):
     selected_word: str
 
 
+class SelectWordChoiceRequest(BaseModel):
+    lemma_id: int
+    original_query: str
+
+
 class WordEnhancementRequest(BaseModel):
     input: str
     force_enrich: bool = False
@@ -35,9 +40,14 @@ async def translate_word(
     query_text = request.input.strip()
     
     try:
+        print(f"DEBUG: translate_word API called for '{query_text}'")
+        print(f"DEBUG: User ID: {current_user.id}")
+        
         # 使用增强词库服务
         from app.services.enhanced_vocabulary_service import EnhancedVocabularyService
         vocabulary_service = EnhancedVocabularyService()
+        print(f"DEBUG: Using EnhancedVocabularyService for '{query_text}'")
+        print(f"DEBUG: Service type: {type(vocabulary_service)}")
         
         result = await vocabulary_service.get_or_create_word_enhanced(
             db=db,
@@ -45,6 +55,8 @@ async def translate_word(
             user=current_user,
             force_enrich=False
         )
+        print(f"DEBUG: Result from enhanced service: found={result.get('found')}, multiple_choices={result.get('multiple_choices')}")
+        print(f"DEBUG: Full result keys: {list(result.keys())}")
         
         return result
         
@@ -173,3 +185,43 @@ async def select_suggested_word(
     except Exception as e:
         logging.error(f"Unexpected error analyzing selected word '{selected_word}': {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error occurred during word analysis")
+
+
+@router.post("/word/choice", response_model=dict)
+async def select_word_choice(
+    request: SelectWordChoiceRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Select a specific word choice from multiple POS results"""
+    
+    try:
+        # Get the specific word by lemma_id
+        from app.models.word import WordLemma
+        from app.services.enhanced_search_service import EnhancedSearchService
+        
+        word = db.query(WordLemma).filter(WordLemma.id == request.lemma_id).first()
+        
+        if not word:
+            raise HTTPException(status_code=404, detail=f"Word with ID {request.lemma_id} not found")
+        
+        # Format the result using the enhanced search service
+        enhanced_search = EnhancedSearchService()
+        result = await enhanced_search.format_found_result(
+            word=word,
+            search_method='user_choice',
+            original_query=request.original_query
+        )
+        
+        # Log search history
+        await CacheService.log_search_history(
+            db, current_user, request.original_query, "word_choice_selection", None
+        )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error selecting word choice {request.lemma_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error occurred during word selection")

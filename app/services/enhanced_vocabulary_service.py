@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.services.vocabulary_service import VocabularyService
 from app.services.lexicon_llm_service import LexiconLLMService
 from app.models.user import User
+from app.models.word import WordLemma
 
 class EnhancedVocabularyService(VocabularyService):
     """增强版词库服务"""
@@ -48,20 +49,75 @@ class EnhancedVocabularyService(VocabularyService):
         force_enrich: bool = False
     ) -> Dict[str, Any]:
         """
-        增强版查词：暂时使用原有逻辑，直到数据库schema更新
+        增强版查词：使用EnhancedSearchService进行智能搜索
         """
         try:
-            # 暂时直接使用父类的方法，避免数据库schema不匹配问题
+            print(f"DEBUG: get_or_create_word_enhanced called for '{lemma}'")
+            # 直接使用我们的增强查找方法
+            existing_word = await self._find_existing_word(db, lemma)
+            
+            if existing_word:
+                # Check if multiple results
+                if isinstance(existing_word, dict) and existing_word.get('multiple_results'):
+                    print(f"Multiple results found for '{lemma}'")
+                    from app.services.enhanced_search_service import EnhancedSearchService
+                    enhanced_search = EnhancedSearchService()
+                    return await enhanced_search.format_multiple_results(
+                        existing_word['matches'], 'multiple_pos', lemma
+                    )
+                else:
+                    print(f"Single result found for '{lemma}'")
+                    await self._log_search_history(db, user, lemma, "word_lookup", from_database=True)
+                    return await self._format_word_data(existing_word, from_database=True)
+            
+            # 如果没找到，使用增强搜索服务进行智能搜索
+            print(f"No direct matches, trying enhanced search for '{lemma}'")
+            from app.services.enhanced_search_service import EnhancedSearchService
+            enhanced_search = EnhancedSearchService()
+            
+            # 使用增强搜索，它会处理inflected forms和redirects
+            result = await enhanced_search.search_with_suggestions(
+                db=db,
+                query=lemma,
+                user=user,
+                max_suggestions=5
+            )
+            
+            # 如果找到了结果，返回格式化的数据
+            if result.get('found'):
+                return result
+            
+            # 如果没找到但有建议，返回建议
+            if result.get('suggestions_with_scores'):
+                return {
+                    'found': False,
+                    'original': lemma,
+                    'suggestions': result['suggestions_with_scores'],
+                    'message': f"'{lemma}' not found. Here are some suggestions:",
+                    'source': 'enhanced_search_suggestions'
+                }
+            
+            # 完全没找到，fallback到原逻辑
             return await self.get_or_create_word(db, lemma, user)
+            
         except Exception as e:
-            print(f"ERROR: Enhanced word lookup failed for '{lemma}': {e}")
+            print(f"ERROR: Enhanced search failed for '{lemma}': {e}")
             # 如果失败，尝试简单的回退逻辑
             try:
                 # 查找现有单词
                 existing_word = await self._find_existing_word(db, lemma)
                 if existing_word:
-                    await self._log_search_history(db, user, lemma, "word_lookup", from_database=True)
-                    return await self._format_word_data(existing_word, from_database=True)
+                    # Check if multiple results
+                    if isinstance(existing_word, dict) and existing_word.get('multiple_results'):
+                        print(f"Multiple results found in fallback for '{lemma}'")
+                        from app.services.enhanced_search_service import EnhancedSearchService
+                        enhanced_search = EnhancedSearchService()
+                        return await enhanced_search.format_multiple_results(
+                            existing_word['matches'], 'multiple_pos', lemma
+                        )
+                    else:
+                        await self._log_search_history(db, user, lemma, "word_lookup", from_database=True)
+                        return await self._format_word_data(existing_word, from_database=True)
                 else:
                     # 如果不存在，返回未找到的响应
                     await self._log_search_history(db, user, lemma, "word_lookup_not_found", from_database=False)
@@ -81,6 +137,84 @@ class EnhancedVocabularyService(VocabularyService):
                     "message": f"Error analyzing '{lemma}'. Please try again.",
                     "source": "error_response"
                 }
+    
+    async def _find_existing_word(self, db: Session, lemma: str):
+        """Override parent method to support multiple results for different POS"""
+        from sqlalchemy.orm import joinedload
+        from app.models.word import WordForm
+        
+        print(f"DEBUG: Enhanced _find_existing_word called for '{lemma}'")
+        
+        all_matches = []
+        
+        # 1. Direct exact case match
+        exact_matches = db.query(WordLemma).options(
+            joinedload(WordLemma.translations),
+            joinedload(WordLemma.examples),
+            joinedload(WordLemma.forms)
+        ).filter(WordLemma.lemma == lemma).all()
+        
+        all_matches.extend(exact_matches)
+        print(f"  Exact matches: {len(exact_matches)}")
+        
+        # 2. Case variations (essen vs Essen)
+        if lemma.islower():
+            # Try capitalized version
+            cap_matches = db.query(WordLemma).options(
+                joinedload(WordLemma.translations),
+                joinedload(WordLemma.examples),
+                joinedload(WordLemma.forms)
+            ).filter(WordLemma.lemma == lemma.capitalize()).all()
+            
+            # Add if not already included
+            for match in cap_matches:
+                if match.id not in [m.id for m in all_matches]:
+                    all_matches.append(match)
+            print(f"  + Capitalized matches: {len(cap_matches)}")
+        elif lemma.isupper() or lemma.istitle():
+            # Try lowercase version
+            lower_matches = db.query(WordLemma).options(
+                joinedload(WordLemma.translations),
+                joinedload(WordLemma.examples),
+                joinedload(WordLemma.forms)
+            ).filter(WordLemma.lemma == lemma.lower()).all()
+            
+            # Add if not already included
+            for match in lower_matches:
+                if match.id not in [m.id for m in all_matches]:
+                    all_matches.append(match)
+            print(f"  + Lowercase matches: {len(lower_matches)}")
+        
+        print(f"  Total matches found: {len(all_matches)}")
+        for match in all_matches:
+            print(f"    - {match.lemma} ({match.pos}) ID {match.id}")
+        
+        # If multiple matches, return special indicator
+        if len(all_matches) > 1:
+            print(f"  Returning multiple matches for choice selection")
+            return {"multiple_results": True, "matches": all_matches}
+        elif len(all_matches) == 1:
+            print(f"  Returning single match")
+            return all_matches[0]
+        
+        # 3. Fallback to inflected forms search (original logic)
+        print(f"  No direct matches, trying inflected forms...")
+        word_form = db.query(WordForm).filter(WordForm.form == lemma).first()
+        if word_form:
+            print(f"  Found inflected form: {word_form.form} -> {word_form.lemma.lemma}")
+            return word_form.lemma
+            
+        # 4. Article removal fallback
+        lemma_clean = self._clean_lemma(lemma)
+        if lemma_clean != lemma:
+            print(f"  Trying cleaned lemma: '{lemma_clean}'")
+            word = db.query(WordLemma).filter(WordLemma.lemma == lemma_clean).first()
+            if word:
+                print(f"  Found cleaned match: {word.lemma}")
+                return word
+        
+        print(f"  No matches found")
+        return None
     
     async def _find_enhanced_word(self, db: Session, lemma: str) -> Optional[Dict[str, Any]]:
         """

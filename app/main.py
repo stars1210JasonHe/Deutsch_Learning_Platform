@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import engine
 from app.db.base import Base
-from app.api import auth, words, translate, history, exam, srs, favorites
+from app.api import auth, words, translate, history, exam, srs, favorites, audio
 
 # Import all models to ensure they are registered with SQLAlchemy
 from app.models import user, word, search, exam as exam_models
@@ -38,6 +38,9 @@ app.include_router(favorites.router, prefix="/favorites", tags=["Favorites"])
 # Phase 2 routers
 app.include_router(exam.router, tags=["Exam System"])
 app.include_router(srs.router, tags=["Spaced Repetition"])
+
+# Audio system
+app.include_router(audio.router, tags=["Audio System"])
 
 
 @app.get("/")

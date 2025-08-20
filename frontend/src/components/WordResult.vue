@@ -37,6 +37,7 @@
           <h2 class="text-2xl font-bold text-gray-900">{{ result.original }}</h2>
           <SpeechButton :text="result.original" size="sm" />
           <FavoriteButton :lemma="result.original" />
+          <AddToSRSButton :lemma="result.original" v-if="result.found" />
         </div>
       </div>
     
@@ -490,6 +491,7 @@ import { computed } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import SpeechButton from './SpeechButton.vue'
 import FavoriteButton from './FavoriteButton.vue'
+import AddToSRSButton from './AddToSRSButton.vue'
 
 const props = defineProps<{
   result: WordAnalysis

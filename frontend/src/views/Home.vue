@@ -99,10 +99,23 @@
     <!-- Results -->
     <div v-if="searchStore.lastWordResult && searchMode === 'word'" class="max-w-5xl mx-auto">
       <div class="glass-card p-8">
-        <h3 class="text-2xl font-semibold text-cosmic mb-6 text-center">
-          🔍 Word Analysis Results
-        </h3>
-        <WordResult :result="searchStore.lastWordResult" />
+        <!-- Multiple Choice Selector -->
+        <div v-if="searchStore.lastWordResult.multiple_choices" class="mb-6">
+          <MultipleChoiceSelector 
+            :choices="searchStore.lastWordResult.choices || []"
+            :message="searchStore.lastWordResult.message || 'Multiple meanings found'"
+            :original-query="searchStore.lastWordResult.original_query || searchStore.lastWordResult.original"
+            @choice-selected="handleChoiceSelected"
+          />
+        </div>
+        
+        <!-- Regular Word Result -->
+        <div v-else>
+          <h3 class="text-2xl font-semibold text-cosmic mb-6 text-center">
+            🔍 Word Analysis Results
+          </h3>
+          <WordResult :result="searchStore.lastWordResult" />
+        </div>
       </div>
     </div>
     
@@ -177,10 +190,11 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useSearchStore } from '@/stores/search'
+import { useSearchStore, type WordChoice } from '@/stores/search'
 import { useAuthStore } from '@/stores/auth'
 import WordResult from '@/components/WordResult.vue'
 import SentenceResult from '@/components/SentenceResult.vue'
+import MultipleChoiceSelector from '@/components/MultipleChoiceSelector.vue'
 
 const searchStore = useSearchStore()
 const authStore = useAuthStore()
@@ -205,6 +219,16 @@ const search = async () => {
     } else {
       await searchStore.translateSentence(searchQuery.value.trim())
     }
+  } catch (err: any) {
+    error.value = err.message
+  }
+}
+
+const handleChoiceSelected = async (choice: WordChoice) => {
+  error.value = ''
+  
+  try {
+    await searchStore.selectWordChoice(choice.lemma_id, choice.lemma)
   } catch (err: any) {
     error.value = err.message
   }

@@ -19,6 +19,11 @@ class AddWordRequest(BaseModel):
     initial_quality: Optional[int] = 3
 
 
+class AddWordByLemmaRequest(BaseModel):
+    lemma: str
+    initial_quality: Optional[int] = 3
+
+
 class ReviewCardRequest(BaseModel):
     card_id: int
     quality: int  # 0-5 scale (0=total blackout, 5=perfect recall)
@@ -115,6 +120,51 @@ async def add_word_to_srs(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=result["error"]
         )
+    
+    return result
+
+
+@router.post("/add-word-by-lemma")
+async def add_word_to_srs_by_lemma(
+    request: AddWordByLemmaRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a word to SRS deck by lemma string"""
+    
+    from app.models.word import WordLemma
+    
+    # Find the word in the database by lemma
+    word = db.query(WordLemma).filter(
+        WordLemma.lemma.ilike(request.lemma)
+    ).first()
+    
+    if not word:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Word '{request.lemma}' not found in vocabulary database"
+        )
+    
+    srs_service = SRSService()
+    
+    result = srs_service.add_word_to_srs(
+        db=db,
+        user=current_user,
+        lemma_id=word.id,
+        initial_quality=request.initial_quality
+    )
+    
+    if "error" in result:
+        if "already exists" in result["error"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Word '{request.lemma}' already exists in your SRS deck"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result["error"]
+            )
     
     return result
 
