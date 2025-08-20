@@ -39,7 +39,7 @@ class OpenAIService:
         {{
             "found": true,
             "input_word": "{word}",
-            "pos": "verb|noun|adjective|adverb|preposition|article|pronoun|other",
+            "pos": "noun|verb|adj|pron|prep|adv|det|particle",
             "lemma": "base form" (if different from input),
             "article": "der|die|das" (only for nouns, null otherwise),
             "plural": "plural form" (only for nouns, null otherwise),

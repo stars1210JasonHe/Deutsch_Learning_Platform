@@ -505,9 +505,11 @@ class VocabularyService:
             print(f"ERROR: Validation failed: Analysis result empty or invalid format - {original_query}")
             return False
         
-        # 验证词性
+        # 验证和标准化词性
         pos = analysis.get("pos", "").strip()
-        valid_pos = ["noun", "verb", "adjective", "adverb", "interjection", "pronoun", "preposition", "conjunction", "article", "other"]
+        pos = self._normalize_pos(pos)  # Normalize POS to standard categories
+        analysis["pos"] = pos  # Update analysis with normalized POS
+        valid_pos = ["noun", "verb", "adj", "pron", "prep", "adv", "det", "particle"]
         if not pos or pos not in valid_pos:
             print(f"ERROR: Validation failed: Invalid POS '{pos}' - {original_query}")
             return False
@@ -634,3 +636,48 @@ class VocabularyService:
             "cached": True,
             "source": "database_search"
         }
+    
+    def _normalize_pos(self, pos: str) -> str:
+        """Normalize POS tags to our standard 8 categories"""
+        if not pos:
+            return pos
+            
+        pos = pos.lower().strip()
+        
+        # Map old/inconsistent POS tags to our standardized ones
+        pos_mapping = {
+            # Adjectives
+            'adjective': 'adj',
+            'adjectives': 'adj',
+            
+            # Pronouns  
+            'pronoun': 'pron',
+            'pronouns': 'pron',
+            
+            # Prepositions
+            'preposition': 'prep',
+            'prepositions': 'prep',
+            'adposition': 'prep',
+            'adp': 'prep',
+            
+            # Adverbs
+            'adverb': 'adv',
+            'adverbs': 'adv',
+            
+            # Determiners
+            'determiner': 'det',
+            'article': 'det',
+            'articles': 'det',
+            
+            # Numbers -> nouns (as decided earlier)
+            'num': 'noun',
+            'number': 'noun',
+            'numeral': 'noun',
+            
+            # Other mappings
+            'conjunction': 'particle',
+            'interjection': 'particle',
+            'other': 'particle',
+        }
+        
+        return pos_mapping.get(pos, pos)

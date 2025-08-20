@@ -41,6 +41,46 @@ class EnhancedVocabularyService(VocabularyService):
             # 如果序列化失败，返回一个空的JSON对象
             return "{}"
     
+    def german_case_variants(self, text: str) -> List[str]:
+        """Generate proper German case variants handling umlauts correctly"""
+        variants = []
+        
+        # Original text
+        variants.append(text)
+        
+        # Python's built-in case conversions
+        variants.extend([
+            text.lower(),
+            text.upper(), 
+            text.capitalize(),
+            text.title()
+        ])
+        
+        # Manual German character mappings for problematic umlauts
+        umlaut_mappings = {
+            'ä': 'Ä', 'ö': 'Ö', 'ü': 'Ü', 'ß': 'ß',
+            'Ä': 'ä', 'Ö': 'ö', 'Ü': 'ü'
+        }
+        
+        # Create additional variants with manual umlaut case conversion
+        for variant in list(variants):
+            manual_variant = ''
+            for char in variant:
+                if char in umlaut_mappings:
+                    manual_variant += umlaut_mappings[char]
+                else:
+                    manual_variant += char
+            if manual_variant not in variants:
+                variants.append(manual_variant)
+        
+        # Remove duplicates while preserving order
+        unique_variants = []
+        for variant in variants:
+            if variant not in unique_variants:
+                unique_variants.append(variant)
+        
+        return unique_variants
+    
     async def get_or_create_word_enhanced(
         self,
         db: Session,
@@ -52,26 +92,26 @@ class EnhancedVocabularyService(VocabularyService):
         增强版查词：使用EnhancedSearchService进行智能搜索
         """
         try:
-            print(f"DEBUG: get_or_create_word_enhanced called for '{lemma}'")
+            print("DEBUG: get_or_create_word_enhanced called")
             # 直接使用我们的增强查找方法
             existing_word = await self._find_existing_word(db, lemma)
             
             if existing_word:
                 # Check if multiple results
                 if isinstance(existing_word, dict) and existing_word.get('multiple_results'):
-                    print(f"Multiple results found for '{lemma}'")
+                    print("Multiple results found")
                     from app.services.enhanced_search_service import EnhancedSearchService
                     enhanced_search = EnhancedSearchService()
                     return await enhanced_search.format_multiple_results(
                         existing_word['matches'], 'multiple_pos', lemma
                     )
                 else:
-                    print(f"Single result found for '{lemma}'")
+                    print("Single result found")
                     await self._log_search_history(db, user, lemma, "word_lookup", from_database=True)
                     return await self._format_word_data(existing_word, from_database=True)
             
             # 如果没找到，使用增强搜索服务进行智能搜索
-            print(f"No direct matches, trying enhanced search for '{lemma}'")
+            print("No direct matches, trying enhanced search")
             from app.services.enhanced_search_service import EnhancedSearchService
             enhanced_search = EnhancedSearchService()
             
@@ -101,7 +141,7 @@ class EnhancedVocabularyService(VocabularyService):
             return await self.get_or_create_word(db, lemma, user)
             
         except Exception as e:
-            print(f"ERROR: Enhanced search failed for '{lemma}': {e}")
+            print(f"ERROR: Enhanced search failed: {e}")
             # 如果失败，尝试简单的回退逻辑
             try:
                 # 查找现有单词
@@ -109,7 +149,7 @@ class EnhancedVocabularyService(VocabularyService):
                 if existing_word:
                     # Check if multiple results
                     if isinstance(existing_word, dict) and existing_word.get('multiple_results'):
-                        print(f"Multiple results found in fallback for '{lemma}'")
+                        print("Multiple results found in fallback")
                         from app.services.enhanced_search_service import EnhancedSearchService
                         enhanced_search = EnhancedSearchService()
                         return await enhanced_search.format_multiple_results(
@@ -129,7 +169,7 @@ class EnhancedVocabularyService(VocabularyService):
                         "source": "fallback_response"
                     }
             except Exception as fallback_error:
-                print(f"ERROR: Fallback also failed for '{lemma}': {fallback_error}")
+                print(f"ERROR: Fallback also failed: {fallback_error}")
                 return {
                     "found": False,
                     "original": lemma,
@@ -139,51 +179,30 @@ class EnhancedVocabularyService(VocabularyService):
                 }
     
     async def _find_existing_word(self, db: Session, lemma: str):
-        """Override parent method to support multiple results for different POS"""
+        """Override parent method to support multiple results for different POS and proper German umlaut handling"""
         from sqlalchemy.orm import joinedload
         from app.models.word import WordForm
         
-        print(f"DEBUG: Enhanced _find_existing_word called for '{lemma}'")
+        print("DEBUG: Enhanced _find_existing_word called")
         
         all_matches = []
         
-        # 1. Direct exact case match
-        exact_matches = db.query(WordLemma).options(
-            joinedload(WordLemma.translations),
-            joinedload(WordLemma.examples),
-            joinedload(WordLemma.forms)
-        ).filter(WordLemma.lemma == lemma).all()
+        # Get all possible case variants for German text including proper umlaut handling
+        variants = self.german_case_variants(lemma)
+        print(f"  Trying variants: {variants}")
         
-        all_matches.extend(exact_matches)
-        print(f"  Exact matches: {len(exact_matches)}")
-        
-        # 2. Case variations (essen vs Essen)
-        if lemma.islower():
-            # Try capitalized version
-            cap_matches = db.query(WordLemma).options(
+        # Search for all variants
+        for variant in variants:
+            matches = db.query(WordLemma).options(
                 joinedload(WordLemma.translations),
                 joinedload(WordLemma.examples),
                 joinedload(WordLemma.forms)
-            ).filter(WordLemma.lemma == lemma.capitalize()).all()
+            ).filter(WordLemma.lemma == variant).all()
             
             # Add if not already included
-            for match in cap_matches:
+            for match in matches:
                 if match.id not in [m.id for m in all_matches]:
                     all_matches.append(match)
-            print(f"  + Capitalized matches: {len(cap_matches)}")
-        elif lemma.isupper() or lemma.istitle():
-            # Try lowercase version
-            lower_matches = db.query(WordLemma).options(
-                joinedload(WordLemma.translations),
-                joinedload(WordLemma.examples),
-                joinedload(WordLemma.forms)
-            ).filter(WordLemma.lemma == lemma.lower()).all()
-            
-            # Add if not already included
-            for match in lower_matches:
-                if match.id not in [m.id for m in all_matches]:
-                    all_matches.append(match)
-            print(f"  + Lowercase matches: {len(lower_matches)}")
         
         print(f"  Total matches found: {len(all_matches)}")
         for match in all_matches:
@@ -201,16 +220,16 @@ class EnhancedVocabularyService(VocabularyService):
         print(f"  No direct matches, trying inflected forms...")
         word_form = db.query(WordForm).filter(WordForm.form == lemma).first()
         if word_form:
-            print(f"  Found inflected form: {word_form.form} -> {word_form.lemma.lemma}")
+            print("  Found inflected form match")
             return word_form.lemma
             
         # 4. Article removal fallback
         lemma_clean = self._clean_lemma(lemma)
         if lemma_clean != lemma:
-            print(f"  Trying cleaned lemma: '{lemma_clean}'")
+            print("  Trying cleaned lemma")
             word = db.query(WordLemma).filter(WordLemma.lemma == lemma_clean).first()
             if word:
-                print(f"  Found cleaned match: {word.lemma}")
+                print("  Found cleaned match")
                 return word
         
         print(f"  No matches found")
