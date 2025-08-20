@@ -39,8 +39,13 @@ async def translate_word(
     
     query_text = request.input.strip()
     
+    # Normalize UTF-8 encoding to handle German umlauts properly
+    import unicodedata
+    query_text = unicodedata.normalize('NFC', query_text)
+    
     try:
-        print(f"DEBUG: translate_word API called for '{query_text}'")
+        print(f"DEBUG: translate_word API called for '{query_text}' (normalized)")
+        print(f"DEBUG: Input repr: {repr(query_text)}")
         print(f"DEBUG: User ID: {current_user.id}")
         
         # 使用增强词库服务
@@ -64,8 +69,14 @@ async def translate_word(
         logging.error(f"Word analysis failed for '{query_text}': {str(e)}")
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logging.error(f"Unexpected error analyzing word '{query_text}': {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error occurred during word analysis")
+        logging.error(f"Full traceback: {error_trace}")
+        # Print to console for immediate debugging
+        print(f"ERROR analyzing word '{query_text}': {str(e)}")
+        print(f"ERROR traceback: {error_trace}")
+        raise HTTPException(status_code=500, detail=f"Internal server error occurred during word analysis: {str(e)}")
 
 
 @router.post("/word/enhanced", response_model=dict)
