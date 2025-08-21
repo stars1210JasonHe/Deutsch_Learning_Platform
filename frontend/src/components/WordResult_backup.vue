@@ -37,7 +37,6 @@
           <h2 class="text-2xl font-bold text-gray-900">{{ result.original }}</h2>
           <SpeechButton :text="result.original" size="sm" />
           <FavoriteButton :lemma="result.original" />
-          <AddToSRSButton :lemma="result.original" v-if="result.found" />
         </div>
       </div>
     
@@ -47,31 +46,36 @@
         Debug: {{ JSON.stringify(result, null, 2) }}
       </div> -->
       
-      <!-- Word Title with Article (for nouns) -->
-      <div class="mb-4">
-        <h2 class="text-3xl font-bold text-gray-900">
+      <!-- Clean Word Display -->
+      <div class="mb-6">
+        <!-- Main word display with article for nouns -->
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">
           <span v-if="result.article && (result.pos === 'noun' || result.upos === 'NOUN')" class="text-blue-600 mr-2">
             {{ result.article }}
           </span>
           {{ result.original }}
         </h2>
         
-        <!-- Plural form for nouns -->
-        <div v-if="result.plural && (result.pos === 'noun' || result.upos === 'NOUN')" class="mt-2">
-          <span class="text-sm text-gray-600">Plural: </span>
-          <span class="text-sm font-medium text-gray-800">{{ result.plural }}</span>
+        <!-- Plural form for nouns - clean display -->
+        <div v-if="result.plural && (result.pos === 'noun' || result.upos === 'NOUN')" class="text-sm text-gray-600">
+          Plural: {{ result.plural }}
+        </div>
+        
+        <!-- Also check noun_props for plural -->
+        <div v-else-if="result.noun_props?.plural && (result.pos === 'noun' || result.upos === 'NOUN')" class="text-sm text-gray-600">
+          Plural: {{ result.noun_props.plural }}
         </div>
       </div>
       
-      <!-- Part of Speech & Basic Info -->
+      <!-- Part of Speech & Basic Info - Cleaner Layout -->
       <div class="space-y-4">
         <!-- Primary Info Row -->
         <div class="flex flex-wrap gap-2">
-          <span v-if="result.upos || result.pos" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-            {{ result.upos || result.pos }}
+          <span v-if="result.upos || result.pos" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium lowercase">
+            {{ (result.upos || result.pos).toLowerCase() }}
           </span>
           
-          <!-- Article for Nouns (also as badge) -->
+          <!-- Article badge for nouns -->
           <span v-if="result.article && (result.pos === 'noun' || result.upos === 'NOUN')" class="px-3 py-1 rounded-full text-sm font-medium"
                 :class="getArticleClass(result.article)">
             {{ result.article }}
@@ -86,43 +90,6 @@
           </span>
         </div>
 
-        <!-- Noun Properties -->
-        <div v-if="result.noun_props && result.upos === 'NOUN'" class="bg-purple-50 rounded-lg p-4">
-          <h4 class="font-medium text-purple-900 mb-2">Noun Properties</h4>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div v-if="result.noun_props.plural">
-              <span class="text-purple-600">Plural:</span>
-              <span class="ml-1 font-medium">{{ result.noun_props.plural }}</span>
-            </div>
-            <div v-if="result.noun_props.gen_sg">
-              <span class="text-purple-600">Genitive:</span>
-              <span class="ml-1 font-medium">{{ result.noun_props.gen_sg }}</span>
-            </div>
-            <div v-if="result.noun_props.declension_class">
-              <span class="text-purple-600">Declension:</span>
-              <span class="ml-1 font-medium">{{ result.noun_props.declension_class }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Verb Properties -->
-        <div v-if="result.verb_props && result.upos === 'VERB'" class="bg-green-50 rounded-lg p-4">
-          <h4 class="font-medium text-green-900 mb-2">Verb Properties</h4>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div v-if="result.verb_props.partizip_ii">
-              <span class="text-green-600">Partizip II:</span>
-              <span class="ml-1 font-medium">{{ result.verb_props.partizip_ii }}</span>
-            </div>
-            <div v-if="result.verb_props.regularity">
-              <span class="text-green-600">Type:</span>
-              <span class="ml-1 font-medium">{{ result.verb_props.regularity }}</span>
-            </div>
-            <div v-if="result.verb_props.prefix">
-              <span class="text-green-600">Prefix:</span>
-              <span class="ml-1 font-medium">{{ result.verb_props.prefix }}</span>
-            </div>
-          </div>
-        </div>
       </div>
       
       <!-- Glosses & Translations -->
@@ -157,55 +124,131 @@
           </div>
         </div>
 
-        <!-- Additional Translations -->
-        <div v-if="showAdditionalTranslations" class="grid md:grid-cols-2 gap-6">
-          <div v-if="result.translations_en && result.translations_en.length > 1">
-            <h3 class="font-semibold text-gray-700 mb-2">More English Translations</h3>
-            <ul class="space-y-1">
-              <li v-for="translation in result.translations_en.slice(1)" :key="translation" 
-                  class="text-gray-600">
-                • {{ translation }}
-              </li>
-            </ul>
-          </div>
-          
-          <div v-if="result.translations_zh && result.translations_zh.length > 1">
-            <h3 class="font-semibold text-gray-700 mb-2">更多中文翻译</h3>
-            <ul class="space-y-1">
-              <li v-for="translation in result.translations_zh.slice(1)" :key="translation" 
-                  class="text-gray-600">
-                • {{ translation }}
-              </li>
-            </ul>
-          </div>
-        </div>
       </div>
       
-      <!-- Conjugation Tables (for verbs) - Dynamic Display -->
+      <!-- Conjugation Tables (for verbs) -->
       <div v-if="result.tables && (result.pos === 'verb' || result.upos === 'VERB')" class="space-y-4">
         <h3 class="font-semibold text-gray-700">Conjugation</h3>
         
-        <!-- Dynamic Tenses Grid -->
-        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div 
-            v-for="(forms, tenseName) in result.tables" 
-            :key="tenseName"
-            :class="getTenseStyle(tenseName)"
-            class="border rounded-lg p-4"
-          >
-            <h4 :class="getTenseHeaderClass(tenseName)" class="font-medium mb-3">
-              {{ getTenseDisplayName(tenseName) }}
-            </h4>
+        <!-- Essential Tenses Only -->
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Präsens -->
+          <div v-if="result.tables.praesens" class="border rounded-lg p-4 bg-blue-50 border-blue-200">
+            <h4 class="font-medium text-blue-800 mb-3">Präsens (Present)</h4>
             <div class="space-y-2 text-sm">
-              <!-- Regular persons (ich, du, er_sie_es, wir, ihr, sie_Sie) -->
-              <div v-for="person in getPersonsForTense(tenseName, forms)" :key="person" class="flex justify-between">
-                <span class="text-gray-600 w-24 font-medium">{{ getPersonDisplayName(person) }}</span>
-                <span :class="getTenseTextClass(tenseName)" class="font-medium">{{ forms[person] }}</span>
+              <div v-if="result.tables.praesens.ich" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ich</span>
+                <span class="font-medium text-blue-900">{{ result.tables.praesens.ich }}</span>
+              </div>
+              <div v-if="result.tables.praesens.du" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">du</span>
+                <span class="font-medium text-blue-900">{{ result.tables.praesens.du }}</span>
+              </div>
+              <div v-if="result.tables.praesens.er_sie_es" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">er/sie/es</span>
+                <span class="font-medium text-blue-900">{{ result.tables.praesens.er_sie_es }}</span>
+              </div>
+              <div v-if="result.tables.praesens.wir" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">wir</span>
+                <span class="font-medium text-blue-900">{{ result.tables.praesens.wir }}</span>
+              </div>
+              <div v-if="result.tables.praesens.ihr" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ihr</span>
+                <span class="font-medium text-blue-900">{{ result.tables.praesens.ihr }}</span>
+              </div>
+              <div v-if="result.tables.praesens.sie_Sie" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">sie/Sie</span>
+                <span class="font-medium text-blue-900">{{ result.tables.praesens.sie_Sie }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Präteritum -->
+          <div v-if="result.tables.praeteritum" class="border rounded-lg p-4 bg-green-50 border-green-200">
+            <h4 class="font-medium text-green-800 mb-3">Präteritum (Simple Past)</h4>
+            <div class="space-y-2 text-sm">
+              <div v-if="result.tables.praeteritum.ich" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ich</span>
+                <span class="font-medium text-green-900">{{ result.tables.praeteritum.ich }}</span>
+              </div>
+              <div v-if="result.tables.praeteritum.du" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">du</span>
+                <span class="font-medium text-green-900">{{ result.tables.praeteritum.du }}</span>
+              </div>
+              <div v-if="result.tables.praeteritum.er_sie_es" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">er/sie/es</span>
+                <span class="font-medium text-green-900">{{ result.tables.praeteritum.er_sie_es }}</span>
+              </div>
+              <div v-if="result.tables.praeteritum.wir" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">wir</span>
+                <span class="font-medium text-green-900">{{ result.tables.praeteritum.wir }}</span>
+              </div>
+              <div v-if="result.tables.praeteritum.ihr" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ihr</span>
+                <span class="font-medium text-green-900">{{ result.tables.praeteritum.ihr }}</span>
+              </div>
+              <div v-if="result.tables.praeteritum.sie_Sie" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">sie/Sie</span>
+                <span class="font-medium text-green-900">{{ result.tables.praeteritum.sie_Sie }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Perfekt -->
+          <div v-if="result.tables.perfekt" class="border rounded-lg p-4 bg-purple-50 border-purple-200">
+            <h4 class="font-medium text-purple-800 mb-3">Perfekt (Present Perfect)</h4>
+            <div class="space-y-2 text-sm">
+              <div v-if="result.tables.perfekt.ich" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ich</span>
+                <span class="font-medium text-purple-900">{{ result.tables.perfekt.ich }}</span>
+              </div>
+              <div v-if="result.tables.perfekt.du" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">du</span>
+                <span class="font-medium text-purple-900">{{ result.tables.perfekt.du }}</span>
+              </div>
+              <div v-if="result.tables.perfekt.er_sie_es" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">er/sie/es</span>
+                <span class="font-medium text-purple-900">{{ result.tables.perfekt.er_sie_es }}</span>
+              </div>
+              <div v-if="result.tables.perfekt.wir" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">wir</span>
+                <span class="font-medium text-purple-900">{{ result.tables.perfekt.wir }}</span>
+              </div>
+              <div v-if="result.tables.perfekt.ihr" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ihr</span>
+                <span class="font-medium text-purple-900">{{ result.tables.perfekt.ihr }}</span>
+              </div>
+              <div v-if="result.tables.perfekt.sie_Sie" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">sie/Sie</span>
+                <span class="font-medium text-purple-900">{{ result.tables.perfekt.sie_Sie }}</span>
+              </div>
+            </div>
+          </div>
+
+          </div>
+
+
+        <!-- Imperative Forms (if available) -->
+        <div v-if="result.tables.imperativ" class="space-y-4">
+          <h4 class="font-medium text-gray-700 mt-6 mb-3">Imperative Forms</h4>
+          <div class="border rounded-lg p-4 bg-teal-50 border-teal-200">
+            <h5 class="font-medium text-teal-800 mb-3">Imperativ (Commands)</h5>
+            <div class="space-y-2 text-sm">
+              <div v-if="result.tables.imperativ.du" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">du</span>
+                <span class="font-medium text-teal-900">{{ result.tables.imperativ.du }}</span>
+              </div>
+              <div v-if="result.tables.imperativ.ihr" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">ihr</span>
+                <span class="font-medium text-teal-900">{{ result.tables.imperativ.ihr }}</span>
+              </div>
+              <div v-if="result.tables.imperativ.Sie" class="flex justify-between">
+                <span class="text-gray-600 w-20 font-medium">Sie</span>
+                <span class="font-medium text-teal-900">{{ result.tables.imperativ.Sie }}</span>
               </div>
             </div>
           </div>
         </div>
-
       </div>
       
       <!-- Example Sentence -->
@@ -236,7 +279,6 @@ import { computed } from 'vue'
 import { useSearchStore } from '@/stores/search'
 import SpeechButton from './SpeechButton.vue'
 import FavoriteButton from './FavoriteButton.vue'
-import AddToSRSButton from './AddToSRSButton.vue'
 
 const props = defineProps<{
   result: WordAnalysis
@@ -292,112 +334,6 @@ const getArticleClass = (article: string) => {
   if (a === 'die') return 'bg-pink-100 text-pink-800'
   if (a === 'das') return 'bg-gray-100 text-gray-800'
   return 'bg-purple-100 text-purple-800'
-}
-
-// Dynamic tense display helpers
-const getTenseDisplayName = (tenseName: string): string => {
-  const tenseNames: { [key: string]: string } = {
-    'praesens': 'Präsens (Present)',
-    'präsens': 'Präsens (Present)',
-    'praeteritum': 'Präteritum (Simple Past)',
-    'präteritum': 'Präteritum (Simple Past)',
-    'perfekt': 'Perfekt (Present Perfect)',
-    'plusquamperfekt': 'Plusquamperfekt (Past Perfect)',
-    'futur_i': 'Futur I (Future I)',
-    'futur1': 'Futur I (Future I)',
-    'futur_ii': 'Futur II (Future II)',
-    'futur2': 'Futur II (Future II)',
-    'imperativ': 'Imperativ (Commands)',
-    'konjunktiv_i': 'Konjunktiv I (Subjunctive I)',
-    'konjunktiv_ii': 'Konjunktiv II (Subjunctive II)'
-  }
-  return tenseNames[tenseName] || tenseName.charAt(0).toUpperCase() + tenseName.slice(1)
-}
-
-const getTenseStyle = (tenseName: string): string => {
-  const styles: { [key: string]: string } = {
-    'praesens': 'bg-blue-50 border-blue-200',
-    'präsens': 'bg-blue-50 border-blue-200',
-    'praeteritum': 'bg-green-50 border-green-200',
-    'präteritum': 'bg-green-50 border-green-200',
-    'perfekt': 'bg-purple-50 border-purple-200',
-    'plusquamperfekt': 'bg-orange-50 border-orange-200',
-    'futur_i': 'bg-indigo-50 border-indigo-200',
-    'futur1': 'bg-indigo-50 border-indigo-200',
-    'futur_ii': 'bg-pink-50 border-pink-200',
-    'futur2': 'bg-pink-50 border-pink-200',
-    'imperativ': 'bg-red-50 border-red-200',
-    'konjunktiv_i': 'bg-amber-50 border-amber-200',
-    'konjunktiv_ii': 'bg-yellow-50 border-yellow-200'
-  }
-  return styles[tenseName] || 'bg-gray-50 border-gray-200'
-}
-
-const getTenseHeaderClass = (tenseName: string): string => {
-  const classes: { [key: string]: string } = {
-    'praesens': 'text-blue-800',
-    'präsens': 'text-blue-800',
-    'praeteritum': 'text-green-800',
-    'präteritum': 'text-green-800',
-    'perfekt': 'text-purple-800',
-    'plusquamperfekt': 'text-orange-800',
-    'futur_i': 'text-indigo-800',
-    'futur1': 'text-indigo-800',
-    'futur_ii': 'text-pink-800',
-    'futur2': 'text-pink-800',
-    'imperativ': 'text-red-800',
-    'konjunktiv_i': 'text-amber-800',
-    'konjunktiv_ii': 'text-yellow-800'
-  }
-  return classes[tenseName] || 'text-gray-800'
-}
-
-const getTenseTextClass = (tenseName: string): string => {
-  const classes: { [key: string]: string } = {
-    'praesens': 'text-blue-900',
-    'präsens': 'text-blue-900',
-    'praeteritum': 'text-green-900',
-    'präteritum': 'text-green-900',
-    'perfekt': 'text-purple-900',
-    'plusquamperfekt': 'text-orange-900',
-    'futur_i': 'text-indigo-900',
-    'futur1': 'text-indigo-900',
-    'futur_ii': 'text-pink-900',
-    'futur2': 'text-pink-900',
-    'imperativ': 'text-red-900',
-    'konjunktiv_i': 'text-amber-900',
-    'konjunktiv_ii': 'text-yellow-900'
-  }
-  return classes[tenseName] || 'text-gray-900'
-}
-
-const getPersonsForTense = (tenseName: string, forms: any): string[] => {
-  if (!forms || typeof forms !== 'object') return []
-  
-  // Define order for regular persons (imperative has different persons)
-  const regularPersons = ['ich', 'du', 'er_sie_es', 'wir', 'ihr', 'sie_Sie']
-  const imperativPersons = ['du', 'ihr', 'Sie']
-  
-  const availablePersons = Object.keys(forms).filter(person => forms[person])
-  
-  if (tenseName === 'imperativ') {
-    return imperativPersons.filter(person => availablePersons.includes(person))
-  } else {
-    return regularPersons.filter(person => availablePersons.includes(person))
-  }
-}
-
-const getPersonDisplayName = (person: string): string => {
-  const personNames: { [key: string]: string } = {
-    'ich': 'ich',
-    'du': 'du',
-    'er_sie_es': 'er/sie/es',
-    'wir': 'wir',
-    'ihr': 'ihr',
-    'sie_Sie': 'sie/Sie',
-    'Sie': 'Sie'
-  }
-  return personNames[person] || person
 }
 
 interface WordAnalysis {

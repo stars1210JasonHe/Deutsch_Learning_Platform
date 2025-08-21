@@ -372,8 +372,8 @@ class VocabularyService:
                 "found": True,  # 重要：前端需要这个字段来显示词汇分析
                 "original": word.lemma,
                 "pos": word.pos,
-                "article": self._extract_article_from_notes(word.notes) if word.pos == "noun" else None,
-                "plural": self._extract_plural_from_notes(word.notes) if word.pos == "noun" else None,
+                "article": self._extract_article_from_forms(word.forms) if word.pos == "noun" else None,
+                "plural": self._extract_plural_from_forms(word.forms) if word.pos == "noun" else None,
                 "tables": self._format_verb_tables(word.forms) if word.pos == "verb" and word.forms else None,
                 "translations_en": translations_en,
                 "translations_zh": translations_zh,
@@ -473,21 +473,105 @@ class VocabularyService:
                 return plural
         
         return None
+    
+    def _extract_article_from_forms(self, forms: List[WordForm]) -> Optional[str]:
+        """从word_forms表中提取冠词"""
+        if not forms:
+            return None
+        
+        for form in forms:
+            if form.feature_key == "article" and form.feature_value == "article":
+                # 验证是有效的德语冠词
+                if form.form.lower() in ["der", "die", "das"]:
+                    return form.form.lower()
+        
+        return None
+    
+    def _extract_plural_from_forms(self, forms: List[WordForm]) -> Optional[str]:
+        """从word_forms表中提取复数形式"""
+        if not forms:
+            return None
+        
+        for form in forms:
+            if form.feature_key == "plural" and form.feature_value == "plural":
+                if form.form and len(form.form.strip()) > 0:
+                    return form.form.strip()
+        
+        return None
 
     def _format_verb_tables(self, forms: List[WordForm]) -> Dict[str, Any]:
-        """从WordForm列表格式化动词表"""
+        """从WordForm列表格式化动词表 - 支持所有时态的动态显示"""
         tables = {}
+        
+        # Tense normalization mapping for frontend compatibility
+        tense_mapping = {
+            # Keep standard tenses as-is
+            'praesens': 'praesens',
+            'praeteritum': 'praeteritum', 
+            'perfekt': 'perfekt',
+            'plusquamperfekt': 'plusquamperfekt',
+            'imperativ': 'imperativ',
+            
+            # Normalize futur variants
+            'futur1': 'futur_i',
+            'futur_i': 'futur_i',
+            'futur_ii': 'futur_ii',
+            'futur2': 'futur_ii',
+            
+            # Normalize konjunktiv
+            'konjunktiv_i': 'konjunktiv_i',
+            'konjunktiv_ii': 'konjunktiv_ii',
+            
+            # Legacy support
+            'futur': 'futur_i',
+            'konjunktiv': 'konjunktiv_ii'  # Default to II if not specified
+        }
         
         for form in forms:
             if form.feature_key == "tense":
                 tense_person = form.feature_value
                 if "_" in tense_person:
-                    tense, person = tense_person.split("_", 1)
-                    if tense not in tables:
-                        tables[tense] = {}
-                    tables[tense][person] = form.form
+                    # Parse tense and person with special handling for er_sie_es pattern
+                    tense, person = self._parse_tense_person(tense_person)
+                    
+                    # Normalize tense name for frontend consistency
+                    normalized_tense = tense_mapping.get(tense, tense)
+                    
+                    if normalized_tense not in tables:
+                        tables[normalized_tense] = {}
+                    
+                    tables[normalized_tense][person] = form.form
         
         return tables if tables else None
+
+    def _parse_tense_person(self, tense_person: str) -> tuple[str, str]:
+        """Parse tense_person patterns with special handling for complex cases"""
+        
+        # Known person patterns that contain underscores
+        complex_persons = ["er_sie_es", "sie_Sie"]
+        
+        # Check if any complex person is at the end
+        for complex_person in complex_persons:
+            if tense_person.endswith("_" + complex_person):
+                tense = tense_person[:-len("_" + complex_person)]
+                return tense, complex_person
+        
+        # Standard parsing for simple cases
+        parts = tense_person.split("_")
+        
+        if len(parts) == 2:
+            # Simple pattern: praesens_ich, imperativ_du  
+            return parts[0], parts[1]
+        elif len(parts) == 3 and parts[0] in ["futur", "konjunktiv"]:
+            # Complex pattern: futur_i_ich, konjunktiv_ii_du
+            tense = f"{parts[0]}_{parts[1]}"
+            person = parts[2]
+            return tense, person
+        else:
+            # Fallback: last part is person, everything else is tense
+            person = parts[-1]
+            tense = "_".join(parts[:-1])
+            return tense, person
 
     def _format_example(self, example: Example) -> Dict[str, str]:
         """格式化例句"""
@@ -509,7 +593,31 @@ class VocabularyService:
         pos = analysis.get("pos", "").strip()
         pos = self._normalize_pos(pos)  # Normalize POS to standard categories
         analysis["pos"] = pos  # Update analysis with normalized POS
-        valid_pos = ["noun", "verb", "adj", "pron", "prep", "adv", "det", "particle"]
+        # Expanded POS categories for Collins Dictionary support
+        valid_pos = [
+            # Basic categories (existing)
+            "noun", "adj", "pron", "prep", "adv", "det", "particle",
+            
+            # Verb categories (Collins Dictionary style)
+            "verb",      # general verb (for backward compatibility) 
+            "vt",        # transitive verb
+            "vi",        # intransitive verb
+            "vr",        # reflexive verb
+            "aux",       # auxiliary verb
+            "modal",     # modal verb
+            
+            # Additional categories
+            "conj",      # conjunction
+            "interj",    # interjection
+            "num",       # numeral
+            "art",       # article (specific determiner type)
+            
+            # SubPOS categories for complex verbs
+            "vi_impers",     # impersonal intransitive
+            "vt_impers",     # impersonal transitive  
+            "vi_prep_obj",   # intransitive with prep object
+            "vt_prep_obj"    # transitive with prep object
+        ]
         if not pos or pos not in valid_pos:
             print(f"ERROR: Validation failed: Invalid POS '{pos}' - {original_query}")
             return False
@@ -644,7 +752,7 @@ class VocabularyService:
             
         pos = pos.lower().strip()
         
-        # Map old/inconsistent POS tags to our standardized ones
+        # Map old/inconsistent POS tags to our expanded Collins Dictionary categories
         pos_mapping = {
             # Adjectives
             'adjective': 'adj',
@@ -664,19 +772,32 @@ class VocabularyService:
             'adverb': 'adv',
             'adverbs': 'adv',
             
-            # Determiners
+            # Determiners vs Articles (Collins distinction)
             'determiner': 'det',
-            'article': 'det',
-            'articles': 'det',
+            'article': 'art',        # Specific type: der, die, das
+            'articles': 'art',
             
-            # Numbers -> nouns (as decided earlier)
-            'num': 'noun',
-            'number': 'noun',
-            'numeral': 'noun',
+            # Verbs - Collins Dictionary style
+            'verb': 'verb',          # Keep general for backward compatibility
+            'transitive': 'vt',      # Transitive verb
+            'intransitive': 'vi',    # Intransitive verb
+            'reflexive': 'vr',       # Reflexive verb
+            'auxiliary': 'aux',      # Auxiliary verb (haben, sein, werden)
+            'modal': 'modal',        # Modal verbs (können, müssen, etc.)
             
-            # Other mappings
-            'conjunction': 'particle',
-            'interjection': 'particle',
+            # Complex verb subtypes
+            'vi impers': 'vi_impers',       # Impersonal intransitive
+            'vt impers': 'vt_impers',       # Impersonal transitive
+            'vi+prep obj': 'vi_prep_obj',   # Intransitive with prep object
+            'vt+prep obj': 'vt_prep_obj',   # Transitive with prep object
+            
+            # Other Collins categories
+            'conjunction': 'conj',    # Now separate category
+            'interjection': 'interj', # Now separate category  
+            'numeral': 'num',        # Now separate category
+            'number': 'num',
+            
+            # Legacy mappings (fallback to particle for unknown)
             'other': 'particle',
         }
         
