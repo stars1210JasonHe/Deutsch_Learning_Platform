@@ -36,10 +36,13 @@
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center space-x-3">
           <h2 class="text-2xl font-bold text-gray-900">{{ result.original }}</h2>
+          <SpeechButton :text="result.original" size="sm" />
+          <FavoriteButton :lemma="result.original" />
           <button 
             @click="openChatModal"
             class="p-2 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg transition-colors"
             title="Chat about this word"
+            :disabled="isLoading"
           >
             💬
           </button>
@@ -47,12 +50,10 @@
             @click="openImageModal"
             class="p-2 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg transition-colors"
             title="Generate image for this word"
+            :disabled="isLoading"
           >
             🎨
           </button>
-          <SpeechButton :text="result.original" size="sm" />
-          <FavoriteButton :lemma="result.original" />
-          <AddToSRSButton :lemma="result.original" v-if="result.found" />
         </div>
       </div>
     
@@ -83,8 +84,8 @@
         <!-- Primary Info Row -->
         <div class="flex flex-wrap gap-2">
           <span v-if="result.upos || result.pos" class="px-3 py-1 rounded-full text-sm font-medium"
-                :class="getPosClass(result.pos || result.upos)">
-            {{ getPosDisplay(result.pos || result.upos, result.verb_props) }}
+                :class="getPosClass(result.pos || result.upos || '')">
+            {{ getPosDisplay(result.pos || result.upos || '', result.verb_props) }}
           </span>
           
           <!-- Article for Nouns (also as badge) -->
@@ -263,17 +264,17 @@
           <div 
             v-for="(forms, tenseName) in result.tables" 
             :key="tenseName"
-            :class="getTenseStyle(tenseName)"
+            :class="getTenseStyle(String(tenseName))"
             class="border rounded-lg p-4"
           >
-            <h4 :class="getTenseHeaderClass(tenseName)" class="font-medium mb-3">
-              {{ getTenseDisplayName(tenseName) }}
+            <h4 :class="getTenseHeaderClass(String(tenseName))" class="font-medium mb-3">
+              {{ getTenseDisplayName(String(tenseName)) }}
             </h4>
             <div class="space-y-2 text-sm">
               <!-- Regular persons (ich, du, er_sie_es, wir, ihr, sie_Sie) -->
-              <div v-for="person in getPersonsForTense(tenseName, forms)" :key="person" class="flex justify-between">
+              <div v-for="person in getPersonsForTense(String(tenseName), forms)" :key="person" class="flex justify-between">
                 <span class="text-gray-600 w-24 font-medium">{{ getPersonDisplayName(person) }}</span>
-                <span :class="getTenseTextClass(tenseName)" class="font-medium">{{ forms[person] }}</span>
+                <span :class="getTenseTextClass(String(tenseName))" class="font-medium">{{ forms[person] }}</span>
               </div>
             </div>
           </div>
@@ -326,7 +327,6 @@ import { useSearchStore } from '@/stores/search'
 import { usePartOfSpeech } from '@/composables/usePartOfSpeech'
 import SpeechButton from './SpeechButton.vue'
 import FavoriteButton from './FavoriteButton.vue'
-import AddToSRSButton from './AddToSRSButton.vue'
 import ChatModal from './ChatModal.vue'
 import ImageModal from './ImageModal.vue'
 

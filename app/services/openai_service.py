@@ -201,7 +201,7 @@ class OpenAIService:
             
             if model == "dall-e-3":
                 params["quality"] = quality
-                
+            # model="gpt-5"
             response = await self.client.images.generate(**params)
             
             return {

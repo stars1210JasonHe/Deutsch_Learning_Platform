@@ -3,6 +3,7 @@
 继承原有功能，添加实时完备性检查和自动补全
 """
 import json
+import logging
 import re
 from typing import Dict, Any, Optional, List, Tuple
 from sqlalchemy.orm import Session
@@ -141,7 +142,7 @@ class EnhancedVocabularyService(VocabularyService):
             return await self.get_or_create_word(db, lemma, user)
             
         except Exception as e:
-            print(f"ERROR: Enhanced search failed: {e}")
+            logging.error("Enhanced search failed: %s", str(e))
             # 如果失败，尝试简单的回退逻辑
             try:
                 # 查找现有单词
@@ -169,7 +170,7 @@ class EnhancedVocabularyService(VocabularyService):
                         "source": "fallback_response"
                     }
             except Exception as fallback_error:
-                print(f"ERROR: Fallback also failed: {fallback_error}")
+                logging.error("Fallback also failed: %s", str(fallback_error))
                 return {
                     "found": False,
                     "original": lemma,
@@ -189,7 +190,10 @@ class EnhancedVocabularyService(VocabularyService):
         
         # Get all possible case variants for German text including proper umlaut handling
         variants = self.german_case_variants(lemma)
-        print(f"  Trying variants: {variants}")
+        try:
+            print(f"  Trying variants: {variants}")
+        except UnicodeEncodeError:
+            print(f"  Trying {len(variants)} variants (with umlauts)")
         
         # Search for all variants
         for variant in variants:
@@ -207,7 +211,10 @@ class EnhancedVocabularyService(VocabularyService):
         
         print(f"  Total matches found: {len(all_matches)}")
         for match in all_matches:
-            print(f"    - {match.lemma} ({match.pos}) ID {match.id}")
+            try:
+                print(f"    - {match.lemma} ({match.pos}) ID {match.id}")
+            except UnicodeEncodeError:
+                print(f"    - [German word] ({match.pos}) ID {match.id}")
         
         # If multiple matches, return special indicator
         if len(all_matches) > 1:
@@ -562,7 +569,7 @@ class EnhancedVocabularyService(VocabularyService):
                 return await self._find_enhanced_word(db, lemma)
         
         except Exception as e:
-            print(f"ERROR: Online completion failed: {e}")
+            logging.error("Online completion failed: %s", str(e))
         
         return word_data
     

@@ -52,7 +52,7 @@ const addToSRS = async () => {
       initial_quality: 3 // Default quality for new cards
     }, {
       headers: {
-        'Authorization': `Bearer ${authStore.accessToken}`
+        'Authorization': `Bearer ${authStore.token}`
       }
     })
 
