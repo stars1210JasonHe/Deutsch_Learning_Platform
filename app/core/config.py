@@ -8,11 +8,16 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"  # Default model
     openai_base_url: str = "https://api.openai.com/v1"
     
+    # Separate OpenAI configuration for image generation
+    openai_image_api_key: Optional[str] = None  # Direct OpenAI API key for images
+    openai_image_base_url: Optional[str] = None  # For image generation (defaults to direct OpenAI)
+    
     # Feature-specific models (optional, falls back to openai_model if not set)
     openai_chat_model: Optional[str] = None  # For chat conversations
     openai_analysis_model: Optional[str] = None  # For word analysis
     openai_translation_model: Optional[str] = None  # For translations
     openai_exam_model: Optional[str] = None  # For exam generation
+    openai_image_model: Optional[str] = None  # For image generation (DALL-E)
     
     # Database
     database_url: str = "sqlite:///./data/app.db"

@@ -11,11 +11,26 @@ class OpenAIService:
         if not settings.openai_api_key:
             logging.warning("OpenAI API key not set. OpenAI features will be disabled.")
             self.client = None
+            self.image_client = None
         else:
+            # Main client for chat/analysis (can use OpenRouter)
             self.client = AsyncOpenAI(
                 api_key=settings.openai_api_key,
                 base_url=settings.openai_base_url
             )
+            
+            # Separate client for image generation (always direct OpenAI)
+            image_api_key = settings.openai_image_api_key or settings.openai_api_key
+            image_base_url = settings.openai_image_base_url or "https://api.openai.com/v1"
+            
+            if image_api_key:
+                self.image_client = AsyncOpenAI(
+                    api_key=image_api_key,
+                    base_url=image_base_url
+                )
+            else:
+                logging.warning("No API key available for image generation")
+                self.image_client = None
         self.model = settings.openai_model
         
         # Feature-specific models with fallback to default
@@ -23,6 +38,7 @@ class OpenAIService:
         self.analysis_model = settings.openai_analysis_model or settings.openai_model
         self.translation_model = settings.openai_translation_model or settings.openai_model
         self.exam_model = settings.openai_exam_model or settings.openai_model
+        self.image_model = settings.openai_image_model or "dall-e-2"  # Default to DALL-E 2 for images
 
     async def analyze_word(self, word: str) -> Dict[str, Any]:
         """Analyze a single word for POS, conjugations, translations"""
@@ -156,7 +172,7 @@ class OpenAIService:
             
         try:
             response = await self.client.chat.completions.create(
-                model=self.model,
+                model=self.chat_model,
                 messages=messages,
                 max_tokens=max_tokens,
                 temperature=temperature
@@ -175,12 +191,16 @@ class OpenAIService:
             logging.error(f"OpenAI chat completion error: {str(e)}")
             raise
 
-    async def generate_image(self, prompt: str, model: str = "dall-e-2", size: str = "512x512", quality: str = "standard") -> Dict[str, Any]:
+    async def generate_image(self, prompt: str, model: str = None, size: str = "512x512", quality: str = "standard") -> Dict[str, Any]:
         """Generate an image using DALL-E"""
-        if not self.client:
+        if not self.image_client:
             raise RuntimeError("OpenAI API key not set; image generation is unavailable")
             
         try:
+            # Use configured image model if not explicitly provided
+            if model is None:
+                model = self.image_model
+                
             # Validate model and size combinations
             if model == "dall-e-3":
                 valid_sizes = ["1024x1024", "1792x1024", "1024x1792"]
@@ -201,8 +221,8 @@ class OpenAIService:
             
             if model == "dall-e-3":
                 params["quality"] = quality
-            # model="gpt-5"
-            response = await self.client.images.generate(**params)
+                
+            response = await self.image_client.images.generate(**params)
             
             return {
                 "url": response.data[0].url,
@@ -215,31 +235,4 @@ class OpenAIService:
             
         except Exception as e:
             logging.error(f"OpenAI image generation error: {str(e)}")
-            raise
-    
-    async def chat_completion(self, messages: list, max_tokens: int = 800, temperature: float = 0.7) -> Dict[str, Any]:
-        """Chat completion for conversational features"""
-        if not self.client:
-            raise RuntimeError("OpenAI API key not set; chat completion is unavailable")
-        
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.chat_model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            
-            return {
-                "content": response.choices[0].message.content,
-                "usage": {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                    "model": self.chat_model
-                }
-            }
-            
-        except Exception as e:
-            logging.error(f"OpenAI chat completion error: {str(e)}")
             raise
