@@ -431,6 +431,7 @@ class EnhancedVocabularyService(VocabularyService):
         
         result = {
             "original": word_data['lemma'],
+            "lemma": word_data['lemma'],  # Add lemma field for frontend compatibility
             "found": True,
             "lemma_id": word_data['lemma_id'],
             "sense_id": word_data['sense_id'],
@@ -506,27 +507,193 @@ class EnhancedVocabularyService(VocabularyService):
         
         return gender_map.get(gender.lower())
     
+    async def format_database_word_enhanced(
+        self, 
+        word: 'WordLemma', 
+        original_query: str = None
+    ) -> Dict[str, Any]:
+        """
+        Format a specific database word in Enhanced format
+        Used for choice selection where we have the exact word object
+        """
+        from app.models.word import Translation, Example, WordForm, VerbProps
+        
+        # Build word_data structure from database word
+        word_data = {
+            'lemma': word.lemma,
+            'lemma_id': word.id,
+            'sense_id': word.id,  # Use same as lemma_id for now
+            'upos': word.pos.upper() if word.pos else 'UNKNOWN',
+            'legacy_pos': word.pos,
+            'cefr': word.cefr,
+            'source': 'database'
+        }
+        
+        # Get verb properties if it's a verb
+        if word.verb_props and (word.pos == 'verb' or word.pos == 'VERB'):
+            word_data.update({
+                'separable': word.verb_props.separable,
+                'prefix': word.verb_props.prefix,
+                'aux': word.verb_props.aux,
+                'regularity': word.verb_props.regularity,
+                'partizip_ii': word.verb_props.partizip_ii,
+                'reflexive': word.verb_props.reflexive
+            })
+        
+        # Get translations
+        translations = {'en': [], 'zh': []}
+        for trans in word.translations:
+            if trans.lang_code == 'en':
+                translations['en'].append(trans.text)
+            elif trans.lang_code == 'zh':
+                translations['zh'].append(trans.text)
+        
+        # Get examples
+        examples = []
+        for example in word.examples:
+            examples.append({
+                'de': example.de_text,
+                'en': example.en_text,
+                'zh': example.zh_text
+            })
+        
+        # Get forms
+        forms = []
+        for form in word.forms:
+            forms.append({
+                'form': form.form,
+                'features': {
+                    form.feature_key: form.feature_value
+                } if form.feature_key and form.feature_value else {}
+            })
+        
+        # Use the existing enhanced formatting
+        result = self._build_enhanced_result(word_data, translations, examples, forms)
+        
+        # Override original if provided
+        if original_query:
+            result['original'] = original_query
+            
+        return result
+    
     def _build_verb_tables(self, forms: List[Dict[str, Any]]) -> Optional[Dict[str, Dict[str, str]]]:
-        """从词形构建动词时态表"""
+        """从词形构建动词时态表 - 使用数据库格式"""
         if not forms:
             return None
         
-        tables = {}
-        
+        # First, group forms by tense like EnhancedSearchService does
+        word_forms = {}
         for form_data in forms:
             features = form_data.get('features', {})
             form = form_data.get('form')
             
-            if features.get('POS') != 'VERB' or not form:
-                continue
+            for feature_key, feature_value in features.items():
+                if feature_key == 'tense' and form:
+                    if 'tense' not in word_forms:
+                        word_forms['tense'] = {}
+                    word_forms['tense'][feature_value] = form
+        
+        tables = {}
+        
+        # Build tables using the same logic as EnhancedSearchService
+        if 'tense' in word_forms:
+            tense_data = word_forms['tense']
             
-            tense = features.get('Tense', '').lower()
-            person = features.get('Person', '')
+            # Build Präsens table
+            if any(key.startswith('praesens_') for key in tense_data.keys()):
+                tables['praesens'] = {
+                    'ich': tense_data.get('praesens_ich'),
+                    'du': tense_data.get('praesens_du'),
+                    'er_sie_es': tense_data.get('praesens_er_sie_es'),
+                    'wir': tense_data.get('praesens_wir'),
+                    'ihr': tense_data.get('praesens_ihr'),
+                    'sie_Sie': tense_data.get('praesens_sie_Sie')
+                }
             
-            if tense and person:
-                if tense not in tables:
-                    tables[tense] = {}
-                tables[tense][person] = form
+            # Build Präteritum table
+            if any(key.startswith('praeteritum_') for key in tense_data.keys()):
+                tables['praeteritum'] = {
+                    'ich': tense_data.get('praeteritum_ich'),
+                    'du': tense_data.get('praeteritum_du'),
+                    'er_sie_es': tense_data.get('praeteritum_er_sie_es'),
+                    'wir': tense_data.get('praeteritum_wir'),
+                    'ihr': tense_data.get('praeteritum_ihr'),
+                    'sie_Sie': tense_data.get('praeteritum_sie_Sie')
+                }
+            
+            # Build Perfekt table
+            if any(key.startswith('perfekt_') for key in tense_data.keys()):
+                tables['perfekt'] = {
+                    'ich': tense_data.get('perfekt_ich'),
+                    'du': tense_data.get('perfekt_du'),
+                    'er_sie_es': tense_data.get('perfekt_er_sie_es'),
+                    'wir': tense_data.get('perfekt_wir'),
+                    'ihr': tense_data.get('perfekt_ihr'),
+                    'sie_Sie': tense_data.get('perfekt_sie_Sie')
+                }
+            
+            # Build Plusquamperfekt table
+            if any(key.startswith('plusquamperfekt_') for key in tense_data.keys()):
+                tables['plusquamperfekt'] = {
+                    'ich': tense_data.get('plusquamperfekt_ich'),
+                    'du': tense_data.get('plusquamperfekt_du'),
+                    'er_sie_es': tense_data.get('plusquamperfekt_er_sie_es'),
+                    'wir': tense_data.get('plusquamperfekt_wir'),
+                    'ihr': tense_data.get('plusquamperfekt_ihr'),
+                    'sie_Sie': tense_data.get('plusquamperfekt_sie_Sie')
+                }
+            
+            # Build Futur I table
+            if any(key.startswith('futur_i_') for key in tense_data.keys()):
+                tables['futur_i'] = {
+                    'ich': tense_data.get('futur_i_ich'),
+                    'du': tense_data.get('futur_i_du'),
+                    'er_sie_es': tense_data.get('futur_i_er_sie_es'),
+                    'wir': tense_data.get('futur_i_wir'),
+                    'ihr': tense_data.get('futur_i_ihr'),
+                    'sie_Sie': tense_data.get('futur_i_sie_Sie')
+                }
+            
+            # Build Futur II table
+            if any(key.startswith('futur_ii_') for key in tense_data.keys()):
+                tables['futur_ii'] = {
+                    'ich': tense_data.get('futur_ii_ich'),
+                    'du': tense_data.get('futur_ii_du'),
+                    'er_sie_es': tense_data.get('futur_ii_er_sie_es'),
+                    'wir': tense_data.get('futur_ii_wir'),
+                    'ihr': tense_data.get('futur_ii_ihr'),
+                    'sie_Sie': tense_data.get('futur_ii_sie_Sie')
+                }
+            
+            # Build Imperativ table
+            if any(key.startswith('imperativ_') for key in tense_data.keys()):
+                tables['imperativ'] = {
+                    'du': tense_data.get('imperativ_du'),
+                    'ihr': tense_data.get('imperativ_ihr'),
+                    'Sie': tense_data.get('imperativ_Sie')
+                }
+            
+            # Build Konjunktiv I table
+            if any(key.startswith('konjunktiv_i_') for key in tense_data.keys()):
+                tables['konjunktiv_i'] = {
+                    'ich': tense_data.get('konjunktiv_i_ich'),
+                    'du': tense_data.get('konjunktiv_i_du'),
+                    'er_sie_es': tense_data.get('konjunktiv_i_er_sie_es'),
+                    'wir': tense_data.get('konjunktiv_i_wir'),
+                    'ihr': tense_data.get('konjunktiv_i_ihr'),
+                    'sie_Sie': tense_data.get('konjunktiv_i_sie_Sie')
+                }
+            
+            # Build Konjunktiv II table
+            if any(key.startswith('konjunktiv_ii_') for key in tense_data.keys()):
+                tables['konjunktiv_ii'] = {
+                    'ich': tense_data.get('konjunktiv_ii_ich'),
+                    'du': tense_data.get('konjunktiv_ii_du'),
+                    'er_sie_es': tense_data.get('konjunktiv_ii_er_sie_es'),
+                    'wir': tense_data.get('konjunktiv_ii_wir'),
+                    'ihr': tense_data.get('konjunktiv_ii_ihr'),
+                    'sie_Sie': tense_data.get('konjunktiv_ii_sie_Sie')
+                }
         
         return tables if tables else None
     

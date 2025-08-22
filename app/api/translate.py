@@ -183,14 +183,15 @@ async def select_suggested_word(
     selected_word = request.selected_word.strip()
     
     try:
-        # 使用统一词库服务分析选中的词汇
-        from app.services.vocabulary_service import VocabularyService
-        vocabulary_service = VocabularyService()
+        # 使用增强词库服务分析选中的词汇 - 保持与主搜索一致的格式
+        from app.services.enhanced_vocabulary_service import EnhancedVocabularyService
+        vocabulary_service = EnhancedVocabularyService()
         
-        result = await vocabulary_service.get_or_create_word(
+        result = await vocabulary_service.get_or_create_word_enhanced(
             db=db,
             lemma=selected_word,
-            user=current_user
+            user=current_user,
+            force_enrich=False
         )
         
         return result
@@ -212,20 +213,26 @@ async def select_word_choice(
     """Select a specific word choice from multiple POS results"""
     
     try:
-        # Get the specific word by lemma_id
+        # Get the specific word by lemma_id and use Enhanced format for consistency
         from app.models.word import WordLemma
-        from app.services.enhanced_search_service import EnhancedSearchService
+        from app.services.enhanced_vocabulary_service import EnhancedVocabularyService
+        from sqlalchemy.orm import joinedload
         
-        word = db.query(WordLemma).filter(WordLemma.id == request.lemma_id).first()
+        # Load word with all relationships for proper formatting
+        word = db.query(WordLemma).options(
+            joinedload(WordLemma.translations),
+            joinedload(WordLemma.examples),
+            joinedload(WordLemma.forms),
+            joinedload(WordLemma.verb_props)
+        ).filter(WordLemma.id == request.lemma_id).first()
         
         if not word:
             raise HTTPException(status_code=404, detail=f"Word with ID {request.lemma_id} not found")
         
-        # Format the result using the enhanced search service
-        enhanced_search = EnhancedSearchService()
-        result = await enhanced_search.format_found_result(
+        # Format the specific word using Enhanced format
+        vocabulary_service = EnhancedVocabularyService()
+        result = await vocabulary_service.format_database_word_enhanced(
             word=word,
-            search_method='user_choice',
             original_query=request.original_query
         )
         
