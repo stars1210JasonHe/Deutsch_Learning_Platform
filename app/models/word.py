@@ -20,6 +20,7 @@ class WordLemma(Base):
     forms = relationship("WordForm", back_populates="lemma", cascade="all, delete-orphan")
     translations = relationship("Translation", back_populates="lemma", cascade="all, delete-orphan")
     examples = relationship("Example", back_populates="lemma", cascade="all, delete-orphan")
+    verb_props = relationship("VerbProps", back_populates="lemma", uselist=False, cascade="all, delete-orphan")
     
     # Phase 2: SRS relationship (temporarily disabled to avoid circular import)
     # srs_cards = relationship("SRSCard", back_populates="lemma", cascade="all, delete-orphan")
@@ -63,3 +64,19 @@ class Example(Base):
 
     # Relationships
     lemma = relationship("WordLemma", back_populates="examples")
+
+
+class VerbProps(Base):
+    __tablename__ = "verb_props"
+
+    sense_id = Column(Integer, ForeignKey("word_lemmas.id", ondelete="CASCADE"), primary_key=True)
+    separable = Column(Integer, default=0)  # Boolean: 0/1
+    prefix = Column(Text)
+    aux = Column(Text)  # "haben" or "sein"
+    regularity = Column(Text)  # "strong", "weak", "mixed", "irregular"
+    partizip_ii = Column(Text)  # Past participle
+    reflexive = Column(Integer, default=0)  # Boolean: 0/1
+    valency_json = Column(Text)  # JSON string with case and preposition info
+
+    # Relationships
+    lemma = relationship("WordLemma", back_populates="verb_props", uselist=False)

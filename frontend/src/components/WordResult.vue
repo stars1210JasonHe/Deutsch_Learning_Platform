@@ -19,8 +19,9 @@
             <div class="flex items-center justify-between">
               <div>
                 <span class="font-medium text-gray-900">{{ suggestion.word }}</span>
-                <span class="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                  {{ suggestion.pos }}
+                <span class="ml-2 text-sm px-2 py-1 rounded-full"
+                      :class="getPosClass(suggestion.pos)">
+                  {{ getPosDisplay(suggestion.pos) }}
                 </span>
               </div>
               <span class="text-sm text-gray-500">{{ suggestion.meaning }}</span>
@@ -35,6 +36,20 @@
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center space-x-3">
           <h2 class="text-2xl font-bold text-gray-900">{{ result.original }}</h2>
+          <button 
+            @click="openChatModal"
+            class="p-2 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded-lg transition-colors"
+            title="Chat about this word"
+          >
+            💬
+          </button>
+          <button 
+            @click="openImageModal"
+            class="p-2 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded-lg transition-colors"
+            title="Generate image for this word"
+          >
+            🎨
+          </button>
           <SpeechButton :text="result.original" size="sm" />
           <FavoriteButton :lemma="result.original" />
           <AddToSRSButton :lemma="result.original" v-if="result.found" />
@@ -67,8 +82,9 @@
       <div class="space-y-4">
         <!-- Primary Info Row -->
         <div class="flex flex-wrap gap-2">
-          <span v-if="result.upos || result.pos" class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-            {{ result.upos || result.pos }}
+          <span v-if="result.upos || result.pos" class="px-3 py-1 rounded-full text-sm font-medium"
+                :class="getPosClass(result.pos || result.upos)">
+            {{ getPosDisplay(result.pos || result.upos, result.verb_props) }}
           </span>
           
           <!-- Article for Nouns (also as badge) -->
@@ -77,12 +93,18 @@
             {{ result.article }}
           </span>
           
-          <!-- Verb Properties -->
+          <!-- Verb Properties (badges) -->
           <span v-if="result.verb_props?.separable" class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm">
             separable
           </span>
-          <span v-if="result.verb_props?.aux" class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+          <span v-if="result.verb_props?.reflexive" class="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm">
+            reflexive
+          </span>
+          <span v-if="result.verb_props?.aux" class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm">
             {{ result.verb_props.aux }}
+          </span>
+          <span v-if="result.verb_props?.regularity" class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+            {{ result.verb_props.regularity }}
           </span>
         </div>
 
@@ -106,20 +128,71 @@
         </div>
 
         <!-- Verb Properties -->
-        <div v-if="result.verb_props && result.upos === 'VERB'" class="bg-green-50 rounded-lg p-4">
-          <h4 class="font-medium text-green-900 mb-2">Verb Properties</h4>
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+        <div v-if="result.verb_props && result.pos === 'verb'" class="bg-green-50 rounded-lg p-4">
+          <h4 class="font-medium text-green-900 mb-2">🔧 Verb Properties</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+            <!-- Separability -->
+            <div v-if="result.verb_props.separable" class="flex items-center space-x-2">
+              <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium">
+                SEPARABLE
+              </span>
+              <span class="text-gray-600">Can be split</span>
+            </div>
+            
+            <!-- Reflexivity -->
+            <div v-if="result.verb_props.reflexive" class="flex items-center space-x-2">
+              <span class="bg-teal-100 text-teal-800 px-2 py-1 rounded text-xs font-medium">
+                REFLEXIVE
+              </span>
+              <span class="text-gray-600">Used with sich</span>
+            </div>
+            
+            <!-- Auxiliary -->
+            <div v-if="result.verb_props.aux" class="flex items-center space-x-2">
+              <span class="bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs font-medium">
+                AUX: {{ result.verb_props.aux.toUpperCase() }}
+              </span>
+              <span class="text-gray-600">Perfect tense</span>
+            </div>
+            
+            <!-- Regularity -->
+            <div v-if="result.verb_props.regularity">
+              <span class="text-green-600 font-medium">Type:</span>
+              <span class="ml-1 capitalize">{{ result.verb_props.regularity }}</span>
+            </div>
+            
+            <!-- Partizip II -->
             <div v-if="result.verb_props.partizip_ii">
-              <span class="text-green-600">Partizip II:</span>
+              <span class="text-green-600 font-medium">Partizip II:</span>
               <span class="ml-1 font-medium">{{ result.verb_props.partizip_ii }}</span>
             </div>
-            <div v-if="result.verb_props.regularity">
-              <span class="text-green-600">Type:</span>
-              <span class="ml-1 font-medium">{{ result.verb_props.regularity }}</span>
+            
+            <!-- Valency (Cases) -->
+            <div v-if="result.verb_props.cases && result.verb_props.cases.length > 0">
+              <span class="text-green-600 font-medium">Cases:</span>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <span 
+                  v-for="case_type in result.verb_props.cases" 
+                  :key="case_type"
+                  class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs"
+                >
+                  {{ case_type }}
+                </span>
+              </div>
             </div>
-            <div v-if="result.verb_props.prefix">
-              <span class="text-green-600">Prefix:</span>
-              <span class="ml-1 font-medium">{{ result.verb_props.prefix }}</span>
+            
+            <!-- Prepositions -->
+            <div v-if="result.verb_props.preps && result.verb_props.preps.length > 0">
+              <span class="text-green-600 font-medium">Prepositions:</span>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <span 
+                  v-for="prep in result.verb_props.preps" 
+                  :key="prep"
+                  class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs"
+                >
+                  {{ prep }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -228,15 +301,34 @@
       </div>
     </div>
     </div>
+
+    <!-- Chat Modal -->
+    <ChatModal
+      v-if="showChatModal"
+      :word="result.original"
+      :wordData="result"
+      @close="closeChatModal"
+    />
+
+    <!-- Image Modal -->
+    <ImageModal
+      v-if="showImageModal"
+      :word="result.original"
+      :wordData="result"
+      @close="closeImageModal"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useSearchStore } from '@/stores/search'
+import { usePartOfSpeech } from '@/composables/usePartOfSpeech'
 import SpeechButton from './SpeechButton.vue'
 import FavoriteButton from './FavoriteButton.vue'
 import AddToSRSButton from './AddToSRSButton.vue'
+import ChatModal from './ChatModal.vue'
+import ImageModal from './ImageModal.vue'
 
 const props = defineProps<{
   result: WordAnalysis
@@ -244,6 +336,30 @@ const props = defineProps<{
 
 const searchStore = useSearchStore()
 const { isLoading, selectSuggestedWord } = searchStore
+
+// Part of Speech utilities
+const { getPosDisplay, getPosClass, isVerbType } = usePartOfSpeech()
+
+// Modal state
+const showChatModal = ref(false)
+const showImageModal = ref(false)
+
+// Modal functions
+const openChatModal = () => {
+  showChatModal.value = true
+}
+
+const closeChatModal = () => {
+  showChatModal.value = false
+}
+
+const openImageModal = () => {
+  showImageModal.value = true
+}
+
+const closeImageModal = () => {
+  showImageModal.value = false
+}
 
 // Helper computed properties
 const hasTranslations = computed(() => {
@@ -352,6 +468,8 @@ const getTenseHeaderClass = (tenseName: string): string => {
   return classes[tenseName] || 'text-gray-800'
 }
 
+// POS display functions now provided by usePartOfSpeech() composable
+
 const getTenseTextClass = (tenseName: string): string => {
   const classes: { [key: string]: string } = {
     'praesens': 'text-blue-900',
@@ -435,6 +553,8 @@ interface WordAnalysis {
     regularity?: string
     partizip_ii?: string
     reflexive?: boolean
+    cases?: string[]
+    preps?: string[]
     valency?: any
   }
   

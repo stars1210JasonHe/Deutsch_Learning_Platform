@@ -5,8 +5,14 @@ from typing import List, Optional
 class Settings(BaseSettings):
     # OpenAI Configuration
     openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4o-mini"  # Default model
     openai_base_url: str = "https://api.openai.com/v1"
+    
+    # Feature-specific models (optional, falls back to openai_model if not set)
+    openai_chat_model: Optional[str] = None  # For chat conversations
+    openai_analysis_model: Optional[str] = None  # For word analysis
+    openai_translation_model: Optional[str] = None  # For translations
+    openai_exam_model: Optional[str] = None  # For exam generation
     
     # Database
     database_url: str = "sqlite:///./data/app.db"

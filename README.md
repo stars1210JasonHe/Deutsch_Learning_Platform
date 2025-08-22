@@ -1,10 +1,12 @@
-# Vibe Deutsch - German Learning Platform
+# Vibe Deutsch - German Learning Platform 🇩🇪
 
-A comprehensive German learning platform with AI-powered vocabulary analysis, persistent authentication, and intelligent learning features.
+A comprehensive German learning platform with AI-powered vocabulary analysis, chat assistance, image generation, and intelligent learning features.
 
-## ✨ Features
+## ✨ Key Features
 
 - 🔍 **Smart Word Search**: Database-first lookup with OpenAI fallback for unknown words
+- 💬 **Interactive Chat**: Ask questions about any German word with configurable conversation rounds
+- 🎨 **AI Image Generation**: Create educational images for vocabulary using DALL-E 2/3
 - 📚 **Complete Grammar Display**: Articles, plurals, verb conjugations across all tenses  
 - 🌐 **Multi-language Support**: German, English, and Chinese translations
 - 📝 **Interactive Exams**: Fill-in-the-blank, multiple choice, and spaced repetition
@@ -19,8 +21,8 @@ A comprehensive German learning platform with AI-powered vocabulary analysis, pe
 ## 🛠 Tech Stack
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite
-- **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS  
-- **AI**: OpenAI API via OpenRouter
+- **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS + Pinia
+- **AI**: OpenAI API via OpenRouter (GPT-4o-mini, DALL-E 2/3)
 - **Authentication**: JWT with refresh tokens and persistent sessions
 - **Package Management**: UV (Python) + npm (Frontend)
 - **Deployment**: Docker + Docker Compose
@@ -46,7 +48,7 @@ docker-compose up -d
 # Access at http://localhost:8000
 ```
 
-📖 **For Synology NAS**: See [DEPLOY-SYNOLOGY.md](DEPLOY-SYNOLOGY.md) for detailed GUI setup instructions.
+📖 **For Synology NAS**: See [MD/DEPLOY-SYNOLOGY.md](MD/DEPLOY-SYNOLOGY.md) for detailed GUI setup instructions.
 
 ### Option 2: Local Development
 
@@ -83,7 +85,7 @@ cd frontend
 # Install dependencies
 npm install
 
-# Start development server
+# Start development server (MUST be on port 3000)
 npm run dev
 ```
 
@@ -97,7 +99,7 @@ npm run dev
 ```
 LanguageLearning/
 ├── app/                    # FastAPI backend
-│   ├── api/               # API endpoints
+│   ├── api/               # API endpoints (auth, translate, chat, images, etc.)
 │   ├── core/              # Configuration & security
 │   ├── db/                # Database setup
 │   ├── models/            # SQLAlchemy models
@@ -105,19 +107,25 @@ LanguageLearning/
 │   └── services/          # Business logic
 ├── frontend/              # Vue 3 application
 │   ├── src/
-│   │   ├── components/    # Reusable components
+│   │   ├── components/    # Reusable components (ChatModal, ImageModal, etc.)
 │   │   ├── views/         # Page components
-│   │   ├── stores/        # Pinia state management
+│   │   ├── stores/        # Pinia state management (auth, settings, search)
 │   │   └── router/        # Vue Router setup
-├── data/                  # SQLite database files
-├── tests/                 # Test scripts
-├── scripts/               # Utility scripts
+├── tools/                 # Utility and processing scripts
 │   ├── fixes/            # Database repair scripts
-│   └── checks/           # Analysis scripts
+│   ├── checks/           # Analysis scripts
+│   ├── imports/          # Import utilities
+│   └── tests/            # Development test scripts
+├── tests/                 # API and integration tests
+├── scripts/               # Database management scripts
+├── data/                  # SQLite database files
+├── Sources/               # PDF sources and dictionary files
 ├── Screenshots/           # Documentation images
+├── MD/                    # Documentation files
+├── logs/                  # Processing logs
 ├── Dockerfile            # Docker build configuration
 ├── docker-compose.yml    # Docker orchestration
-└── DEPLOY-SYNOLOGY.md    # Synology deployment guide
+└── README.md             # This file
 ```
 
 ## 🔐 Authentication & Security
@@ -129,31 +137,48 @@ LanguageLearning/
 - **Smart Recovery**: 401 errors trigger seamless token refresh
 - **HTTP Compatible**: Secure authentication over HTTP for local networks
 
-### Login Features
-- ✅ **24-hour standard sessions**
-- ✅ **90-day extended sessions** with "Remember me"
-- ✅ **Automatic token refresh** (refreshes 5 minutes before expiry)
-- ✅ **Network resilience** (handles connection drops gracefully)
-- ✅ **Multi-tab synchronization**
+### Test Account
+For testing purposes:
+- **Email**: `heyeqiu1210@gmail.com`
+- **Password**: `123456`
+
+## 🆕 New AI-Powered Features
+
+### Chat Assistant
+- 💬 Interactive conversations about any German word
+- 🎯 Educational context with grammar, usage, and cultural information
+- ⚙️ Configurable conversation rounds (default: 10)
+- 📋 Copy/download conversations for review
+- 🧠 Powered by OpenAI via OpenRouter
+
+### AI Image Generation
+- 🎨 Generate educational images for vocabulary words
+- 🖼️ Multiple styles: Educational, Cartoon, Semi-realistic
+- 🔧 Configurable models: DALL-E 2 (fast) or DALL-E 3 (quality)
+- 📐 Multiple size options (256x256 to 1792x1024)
+- 💾 Download and copy functionality
 
 ## 🔧 Key Features Detail
 
-### Word Search & Analysis
+### Enhanced Search System
 - **Database Priority**: Instant lookup from local vocabulary database
 - **AI Enhancement**: Unknown words analyzed via OpenAI with grammatical information
-- **Smart Suggestions**: Non-German inputs get 5 relevant German word suggestions
+- **Smart Suggestions**: Non-German inputs get relevant German word suggestions
+- **Multiple Choice**: When search returns multiple options, user can select the intended word
 - **Complete Grammar**: Articles (der/die/das), plurals, and full verb conjugation tables
-
-### Exam System
-- **Multiple Formats**: Fill-in-the-blank, multiple choice, translation exercises
-- **Adaptive Difficulty**: Questions adjust based on performance
-- **Progress Tracking**: Detailed analytics and improvement metrics
 
 ### Vocabulary Management
 - **Excel Import**: Bulk import from structured Excel files
+- **PDF Processing**: Extract vocabulary from Collins dictionary PDFs
 - **Auto-Enhancement**: Missing translations, examples, and grammar auto-generated
 - **Duplicate Cleanup**: Intelligent merging of related word forms
 - **Quality Assurance**: Comprehensive validation and error correction
+
+### Exam & Learning System
+- **Multiple Formats**: Fill-in-the-blank, multiple choice, translation exercises
+- **Adaptive Difficulty**: Questions adjust based on performance
+- **Progress Tracking**: Detailed analytics and improvement metrics
+- **Spaced Repetition**: SRS system for optimal retention
 
 ## 🐳 Docker Deployment
 
@@ -182,83 +207,66 @@ DATABASE_URL=sqlite:///./data/app.db
 SECRET_KEY=your_32_character_secret_key
 ```
 
-### Synology NAS Deployment
-1. **Install Container Manager** from Package Center
-2. **Upload project** to `/docker/vibe-deutsch/`
-3. **Configure environment** variables in Container Manager
-4. **Deploy with docker-compose.yml**
-5. **Access at** `http://your-nas-ip:8000`
-
-See [DEPLOY-SYNOLOGY.md](DEPLOY-SYNOLOGY.md) for detailed step-by-step instructions.
-
 ## 🔌 API Endpoints
 
 ### Authentication
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login with remember me option
-- `POST /auth/refresh` - Refresh access token
-- `GET /auth/me` - Get current user info
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login with remember me option
+- `POST /api/auth/refresh` - Refresh access token
+- `GET /api/auth/me` - Get current user info
 
 ### Word & Translation
-- `POST /translate/word` - Word lookup with AI fallback
-- `POST /translate/sentence` - Sentence translation with gloss
-- `POST /translate/word/select` - Select from AI suggestions
+- `POST /api/translate/word` - Word lookup with AI fallback
+- `POST /api/translate/sentence` - Sentence translation with gloss
+- `POST /api/translate/word/select` - Select from AI suggestions
+- `POST /api/translate/word/choice` - Select from multiple choice options
+
+### AI Features
+- `POST /api/chat/word` - Chat about a specific word
+- `POST /api/images/generate` - Generate educational images
 
 ### Learning Features  
-- `GET /search/history` - Search history
-- `GET /favorites` - Saved words
-- `POST /exam/generate` - Create practice exam
-- `GET /srs/review` - Spaced repetition cards
+- `GET /api/search/history` - Search history
+- `GET /api/favorites` - Saved words
+- `POST /api/exam/generate` - Create practice exam
+- `GET /api/srs/review` - Spaced repetition cards
 
-## 📚 Vocabulary Import
+## 🧪 Testing & Development
 
-### Supported Formats
-- **Excel Files**: `.xlsx` with German, English, Chinese columns
-- **PDF Files**: German vocabulary lists with auto-extraction
-
-### Import Process
-```bash
-# Import Excel vocabulary
-uv run python scripts/import_excel_vocabulary.py
-
-# Import from PDF  
-uv run python scripts/pdf_vocabulary_importer.py
-
-# Auto-fix incomplete entries
-uv run python scripts/fixes/enhanced_database_fixer.py --mode all
-```
-
-## 🧪 Testing
-
+### Running Tests
 ```bash
 # Run all tests
 uv run python tests/run_tests.py
 
 # Test specific functionality
 uv run python tests/test_api_endpoints.py
-uv run python tests/test_openai_functions.py
-
-# Test live API integration
 uv run python tests/test_live_api.py
 
-# Test authentication system
-uv run python tests/test_api_directly.py
+# Frontend E2E tests
+cd frontend && npm run test
 ```
 
-## 🔧 Development Commands
-
+### Development Commands
 ```bash
 # Database analysis
 uv run python scripts/checks/inspect_database.py
 
-# Check for incomplete entries  
-uv run python scripts/checks/check_incomplete_words.py
-
 # Fix database issues
-uv run python scripts/fixes/enhanced_database_fixer.py
+uv run python scripts/fixes/enhanced_database_fixer.py --mode all
 
-# Generate missing examples
-uv run python scripts/fixes/generate_missing_examples.py
+# Import vocabulary
+uv run python scripts/import_excel_vocabulary.py
+
+# Process Collins dictionary
+uv run python tools/complete_collins_processor.py
+```
+
+### Unicode Support (Windows)
+For scripts handling German characters (ä, ö, ü, ß):
+```bash
+set PYTHONIOENCODING=utf-8 && uv run python script.py
+# OR
+uv run python script.py 2>nul
 ```
 
 ## ⚠️ Troubleshooting
@@ -268,13 +276,12 @@ uv run python scripts/fixes/generate_missing_examples.py
 - **Database Errors**: Ensure `data/` directory exists and is writable
 - **Frontend Build Issues**: Clear cache with `rm -rf frontend/node_modules && npm install`
 - **CORS Issues**: Backend CORS settings in `app/main.py`, frontend proxy in `vite.config.ts`
-- **Session Timeout**: Check token refresh logs, verify refresh token endpoint
+- **Port 3000 Required**: Frontend must run on port 3000 for proxy configuration
 
-### Docker Issues
-- **Container Won't Start**: Check logs with `docker-compose logs`
-- **Port Conflicts**: Modify ports in `docker-compose.yml`
-- **Volume Permissions**: Ensure data directory has correct permissions
-- **Memory Issues**: Increase container memory limits for large vocabulary imports
+### Chat/Image Features
+- **Chat Errors**: Verify OpenAI API key and OpenRouter configuration
+- **Image Generation Fails**: Check model availability and size settings
+- **Modal Issues**: Clear browser cache and refresh page
 
 ### Authentication Debugging
 ```bash
@@ -284,7 +291,7 @@ localStorage.getItem('refreshToken')
 localStorage.getItem('tokenExpiry')
 
 # Backend token verification
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/auth/me
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/auth/me
 ```
 
 ## 🚀 Production Deployment
@@ -299,9 +306,16 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/auth/me
 
 ### Performance Optimization
 - **Database**: Use SSD storage for better performance
-- **Memory**: Allocate 1-2GB RAM for optimal performance
+- **Memory**: Allocate 2-4GB RAM for optimal performance with AI features
 - **Network**: Use CDN for static assets in production
-- **Caching**: OpenAI responses cached automatically
+- **Caching**: OpenAI responses cached automatically to minimize costs
+
+## 📚 Documentation
+
+- **[CLAUDE.md](MD/CLAUDE.md)**: Development guide and architecture details
+- **[DEPLOY-SYNOLOGY.md](MD/DEPLOY-SYNOLOGY.md)**: Synology NAS deployment guide
+- **[SEARCH-LOGIC-COMPLETE.md](MD/SEARCH-LOGIC-COMPLETE.md)**: Search system implementation
+- **[GERMAN-UMLAUT-FIX.md](MD/GERMAN-UMLAUT-FIX.md)**: Unicode handling solutions
 
 ## 📄 License
 
@@ -309,7 +323,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
-- OpenAI for language model capabilities
+- OpenAI for language model capabilities and image generation
 - Vue.js and FastAPI communities for excellent frameworks
 - Docker for containerization technology
 - Synology for NAS platform compatibility
@@ -317,4 +331,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-🎉 **Ready to learn German?** Deploy with Docker and start your language journey!
+🎉 **Ready to learn German?** Deploy with Docker and start your language journey with AI-powered assistance!
+
+📧 **Questions?** Check the documentation in the `MD/` folder or open an issue on GitHub.

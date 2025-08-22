@@ -13,6 +13,16 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // New chat and image endpoints (keep /api prefix)
+      '/api/chat': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/api/images': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      // Existing endpoints (remove /api prefix)
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,

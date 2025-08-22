@@ -3,7 +3,7 @@ Vocabulary Service - 统一词库管理
 先查询本地词库，不存在才调用OpenAI，然后保存到词库
 """
 from typing import Dict, Any, Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from app.models.word import WordLemma, Translation, Example, WordForm
 from app.models.search import SearchHistory
@@ -232,20 +232,21 @@ class VocabularyService:
     async def _find_existing_word(self, db: Session, lemma: str) -> Optional[WordLemma]:
         """查找现有单词（支持变位查找）"""
         
-        # 直接匹配lemma
-        word = db.query(WordLemma).filter(WordLemma.lemma.ilike(lemma)).first()
+        # 直接匹配lemma (eagerly load verb_props)
+        word = db.query(WordLemma).options(joinedload(WordLemma.verb_props)).filter(WordLemma.lemma.ilike(lemma)).first()
         if word:
             return word
         
         # 查找词形变位（如gehe -> gehen）
         word_form = db.query(WordForm).filter(WordForm.form.ilike(lemma)).first()
         if word_form:
-            return word_form.lemma
+            # Load the lemma with verb_props
+            return db.query(WordLemma).options(joinedload(WordLemma.verb_props)).filter(WordLemma.id == word_form.lemma_id).first()
             
         # 去除冠词后匹配（如der Tisch -> Tisch）
         lemma_clean = self._clean_lemma(lemma)
         if lemma_clean != lemma:
-            word = db.query(WordLemma).filter(WordLemma.lemma.ilike(lemma_clean)).first()
+            word = db.query(WordLemma).options(joinedload(WordLemma.verb_props)).filter(WordLemma.lemma.ilike(lemma_clean)).first()
             if word:
                 return word
         
@@ -375,6 +376,7 @@ class VocabularyService:
                 "article": self._extract_article_from_forms(word.forms) if word.pos == "noun" else None,
                 "plural": self._extract_plural_from_forms(word.forms) if word.pos == "noun" else None,
                 "tables": self._format_verb_tables(word.forms) if word.pos == "verb" and word.forms else None,
+                "verb_props": self._format_verb_props(word.verb_props) if word.pos == "verb" and word.verb_props else None,
                 "translations_en": translations_en,
                 "translations_zh": translations_zh,
                 "example": self._format_example(word.examples[0]) if word.examples else None,
@@ -498,6 +500,32 @@ class VocabularyService:
                     return form.form.strip()
         
         return None
+    
+    def _format_verb_props(self, verb_props) -> Optional[Dict[str, Any]]:
+        """Format verb properties for frontend display"""
+        if not verb_props:
+            return None
+            
+        import json
+        
+        # Parse valency JSON if available
+        valency_data = {}
+        if verb_props.valency_json:
+            try:
+                valency_data = json.loads(verb_props.valency_json)
+            except (json.JSONDecodeError, TypeError):
+                valency_data = {}
+        
+        return {
+            "separable": bool(verb_props.separable),
+            "prefix": verb_props.prefix,
+            "aux": verb_props.aux,  # "haben" or "sein"
+            "regularity": verb_props.regularity,  # "strong", "weak", "mixed", "irregular"
+            "partizip_ii": verb_props.partizip_ii,
+            "reflexive": bool(verb_props.reflexive),
+            "cases": valency_data.get("cases", []),  # ["accusative", "dative"]
+            "preps": valency_data.get("preps", [])   # ["mit", "an"]
+        }
 
     def _format_verb_tables(self, forms: List[WordForm]) -> Dict[str, Any]:
         """从WordForm列表格式化动词表 - 支持所有时态的动态显示"""

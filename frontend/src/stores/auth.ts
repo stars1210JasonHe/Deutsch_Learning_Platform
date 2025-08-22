@@ -36,7 +36,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   const login = async (credentials: LoginCredentials) => {
     try {
-      const response = await axios.post('http://localhost:8000/auth/login', credentials)
+      const response = await axios.post('/api/auth/login', credentials)
       const { access_token, refresh_token, expires_in } = response.data
       
       // Store tokens and expiry
@@ -70,7 +70,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   const register = async (credentials: RegisterCredentials) => {
     try {
-      await axios.post('http://localhost:8000/auth/register', credentials)
+      await axios.post('/api/auth/register', credentials)
       
       // Auto-login after registration
       return await login(credentials)
@@ -84,7 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   const getCurrentUser = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/auth/me')
+      const response = await axios.get('/api/auth/me')
       user.value = response.data
     } catch (error) {
       logout()
@@ -97,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
         throw new Error('No refresh token available')
       }
       
-      const response = await axios.post('http://localhost:8000/auth/refresh', {
+      const response = await axios.post('/api/auth/refresh', {
         refresh_token: refreshToken.value
       })
       

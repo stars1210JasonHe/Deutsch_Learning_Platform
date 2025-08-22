@@ -19,8 +19,9 @@
             <div class="flex items-center justify-between">
               <div>
                 <span class="font-medium text-gray-900">{{ suggestion.word }}</span>
-                <span class="ml-2 text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                  {{ suggestion.pos }}
+                <span class="ml-2 text-sm px-2 py-1 rounded-full"
+                      :class="getPosClass(suggestion.pos)">
+                  {{ getPosDisplay(suggestion.pos) }}
                 </span>
               </div>
               <span class="text-sm text-gray-500">{{ suggestion.meaning }}</span>
@@ -48,8 +49,9 @@
         <h2 class="text-xl font-semibold text-gray-800">{{ result.lemma || result.original }}</h2>
         
         <!-- POS Badge -->
-        <span class="inline-block mt-1 px-2 py-1 text-sm bg-blue-100 text-blue-800 rounded">
-          {{ result.pos || result.upos }}
+        <span class="inline-block mt-1 px-2 py-1 text-sm rounded"
+              :class="getPosClass(result.pos || result.upos)">
+          {{ getPosDisplay(result.pos || result.upos, result.verb_props) }}
         </span>
       </div>
 
@@ -88,6 +90,28 @@
               • {{ translation }}
             </li>
           </ul>
+        </div>
+      </div>
+
+      <!-- Verb Properties -->
+      <div v-if="result.verb_props && result.pos === 'verb'" class="mb-6">
+        <h3 class="font-semibold text-gray-700 mb-3">Verb Properties</h3>
+        <div class="flex flex-wrap gap-2">
+          <span v-if="result.verb_props.separable" class="bg-orange-100 text-orange-800 px-3 py-1 rounded text-sm font-medium">
+            Separable
+          </span>
+          <span v-if="result.verb_props.reflexive" class="bg-teal-100 text-teal-800 px-3 py-1 rounded text-sm font-medium">
+            Reflexive
+          </span>
+          <span v-if="result.verb_props.aux" class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded text-sm font-medium">
+            {{ result.verb_props.aux }} (auxiliary)
+          </span>
+          <span v-if="result.verb_props.regularity" class="bg-gray-100 text-gray-800 px-3 py-1 rounded text-sm font-medium">
+            {{ result.verb_props.regularity }}
+          </span>
+          <span v-if="result.verb_props.partizip_ii" class="bg-green-100 text-green-800 px-3 py-1 rounded text-sm font-medium">
+            {{ result.verb_props.partizip_ii }}
+          </span>
         </div>
       </div>
 
@@ -217,6 +241,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSearchStore } from '@/stores/search'
+import { usePartOfSpeech } from '@/composables/usePartOfSpeech'
 import SpeechButton from './SpeechButton.vue'
 
 const props = defineProps<{
@@ -225,6 +250,9 @@ const props = defineProps<{
 
 const searchStore = useSearchStore()
 const { isLoading, selectSuggestedWord } = searchStore
+
+// Part of Speech utilities
+const { getPosDisplay, getPosClass, isVerbType } = usePartOfSpeech()
 
 // Helper computed properties
 const hasMoreTranslations = computed(() => {
@@ -260,6 +288,17 @@ interface WordAnalysis {
     praeteritum?: any
     perfekt?: any
     imperativ?: any
+  }
+  
+  // Verb properties
+  verb_props?: {
+    separable?: boolean
+    reflexive?: boolean
+    aux?: string
+    regularity?: string
+    partizip_ii?: string
+    cases?: string[]
+    preps?: string[]
   }
   
   // Examples

@@ -196,7 +196,8 @@ class EnhancedVocabularyService(VocabularyService):
             matches = db.query(WordLemma).options(
                 joinedload(WordLemma.translations),
                 joinedload(WordLemma.examples),
-                joinedload(WordLemma.forms)
+                joinedload(WordLemma.forms),
+                joinedload(WordLemma.verb_props)
             ).filter(WordLemma.lemma == variant).all()
             
             # Add if not already included
