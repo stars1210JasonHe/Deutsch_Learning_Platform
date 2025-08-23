@@ -650,7 +650,7 @@ const initializeMatchingQuestion = () => {
     const pairs = getMatchingPairs()
     if (pairs.length > 0) {
       // Create and shuffle right items once
-      const rightItems = pairs.map((pair, index) => ({
+      const rightItems = pairs.map((pair: any, index: number) => ({
         text: getRightItem(pair),
         originalIndex: index
       }))
@@ -768,7 +768,7 @@ const getReorderWords = () => {
   }
   
   // Ensure words are strings, not objects
-  words = words.map(word => {
+  words = words.map((word: any) => {
     if (typeof word === 'string') return word
     if (typeof word === 'object' && word !== null) {
       // Try common text properties

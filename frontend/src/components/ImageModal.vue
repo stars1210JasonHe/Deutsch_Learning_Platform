@@ -118,6 +118,19 @@
 
         <!-- Generated Image -->
         <div v-if="generatedImage && !isGenerating" class="text-center">
+          <!-- Word and meaning display above image -->
+          <div class="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg">
+            <h3 class="text-2xl font-bold text-gray-900 mb-2">{{ word }}</h3>
+            <div class="text-lg text-gray-700" v-if="wordData?.gloss_en || wordData?.translations_en">
+              <span class="italic">
+                {{ wordData?.gloss_en || wordData?.translations_en?.[0] }}
+              </span>
+            </div>
+            <div class="text-sm text-gray-500 mt-1" v-if="wordData?.pos || wordData?.upos">
+              {{ wordData?.pos || wordData?.upos }}
+            </div>
+          </div>
+          
           <div class="mb-4">
             <img
               :src="generatedImage.url"

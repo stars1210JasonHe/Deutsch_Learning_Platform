@@ -326,7 +326,15 @@ Output ONLY JSON with this schema:
 Strict rules:
 - The number of questions per section and per type MUST exactly match the TEMPLATE "types" counts.
 - For MCQ, always provide 4 options in content.options.
-- For CLOZE, content.blanks must include ids and acceptable alternatives; correct_answer maps blank ids to arrays of acceptable answers.
+- For CLOZE, CRITICAL FORMAT: content must have both "text" field with [blankId] placeholders AND "blanks" array. Example:
+  content: {
+    "text": "Der Hund ist [b1] und die Katze ist [b2].",
+    "blanks": [
+      {"id": "b1", "alternatives": ["groß", "klein"]},
+      {"id": "b2", "alternatives": ["schwarz", "weiß"]}
+    ]
+  }
+  correct_answer maps blank ids to arrays of acceptable answers.
 - For MATCHING, use 5-6 pairs in content.pairs.
 - Use natural, CEFR-appropriate German sentences; avoid English unless asked in prompt.
 """

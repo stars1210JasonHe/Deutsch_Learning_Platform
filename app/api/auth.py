@@ -1,5 +1,5 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_active_user
 from app.core.security import create_access_token, create_refresh_token, verify_refresh_token, get_password_hash, verify_password
@@ -34,7 +34,7 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(login_data: UserLogin, db: Session = Depends(get_db)):
+async def login(login_data: UserLogin, response: Response, db: Session = Depends(get_db)):
     # Find user
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user or not verify_password(login_data.password, user.password_hash):
@@ -55,11 +55,36 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     # Calculate expires_in based on remember_me
     expires_in = (settings.remember_me_expire_days * 24 * 60) if login_data.remember_me else settings.access_token_expire_minutes
     
+    # Set httpOnly cookies for secure token storage
+    max_age_seconds = expires_in * 60  # Convert minutes to seconds
+    
+    # Set access token cookie (environment-aware security)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=max_age_seconds,
+        httponly=True,
+        secure=settings.https_only,  # Only require HTTPS when configured
+        samesite="lax"  # CSRF protection
+    )
+    
+    # Set refresh token cookie with longer expiry
+    refresh_max_age = settings.refresh_token_expire_days * 24 * 60 * 60  # Days to seconds
+    response.set_cookie(
+        key="refresh_token", 
+        value=refresh_token,
+        max_age=refresh_max_age,
+        httponly=True,
+        secure=settings.https_only,  # Only require HTTPS when configured
+        samesite="lax"
+    )
+    
     return {
-        "access_token": access_token,
+        "access_token": access_token,  # Still return for backwards compatibility
         "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "expires_in": expires_in
+        "token_type": "bearer", 
+        "expires_in": expires_in,
+        "message": "Tokens set in secure cookies"
     }
 
 
@@ -103,3 +128,25 @@ async def get_current_user_info(
     current_user: User = Depends(get_current_active_user)
 ):
     return current_user
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Logout user by clearing secure cookies."""
+    # Clear access token cookie (match login settings)
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        secure=settings.https_only,
+        samesite="lax"
+    )
+    
+    # Clear refresh token cookie
+    response.delete_cookie(
+        key="refresh_token", 
+        httponly=True,
+        secure=settings.https_only,
+        samesite="lax"
+    )
+    
+    return {"message": "Successfully logged out"}

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
-from app.core.security_middleware import SecurityHeadersMiddleware, RateLimitMiddleware
 from app.db.session import engine
 from app.db.base import Base
 from app.api import auth, words, translate, history, exam, srs, favorites, audio, chat, images
@@ -20,33 +20,26 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configure CORS with specific, secure settings
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_hosts,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=[
-        "accept",
-        "accept-language", 
-        "content-type",
-        "authorization",
-        "x-requested-with",
-        "x-csrf-token"
-    ],
-    expose_headers=["x-csrf-token"],
-    max_age=600,  # Cache preflight requests for 10 minutes
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-# Add security middleware
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+# Also include auth router with /api prefix for frontend compatibility
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication (API)"])
 app.include_router(words.router, prefix="/words", tags=["Words"])
 app.include_router(translate.router, prefix="/translate", tags=["Translation"])
+# Also include translate router with /api prefix for frontend compatibility  
+app.include_router(translate.router, prefix="/api/translate", tags=["Translation (API)"])
 app.include_router(history.router, prefix="/search", tags=["Search History"])
+# Also include search router with /api prefix for frontend compatibility
+app.include_router(history.router, prefix="/api/search", tags=["Search History (API)"])
 app.include_router(favorites.router, prefix="/favorites", tags=["Favorites"])
 
 # Phase 2 routers
@@ -60,14 +53,8 @@ app.include_router(audio.router, tags=["Audio System"])
 app.include_router(chat.router, prefix="/api", tags=["Chat System"])
 app.include_router(images.router, prefix="/api", tags=["Image Generation"])
 
-
-@app.get("/")
-async def root():
-    return {
-        "message": "Vibe Deutsch API - OpenAI-powered German learning platform",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+# Serve static frontend files (must be last)
+app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
 
 
 @app.get("/health")

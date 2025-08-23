@@ -76,8 +76,8 @@ async def generate_word_image(
             # Generic approach for other word types
             prompt = f"{style_description}. An educational illustration representing {base_info}{meaning_context}. The image should help German language learners understand and remember this word. Clear, simple, and educational."
             
-        # Add quality and safety modifiers
-        prompt += " High quality, educational content, appropriate for all ages, no text in the image."
+        # Add quality and safety modifiers - explicitly avoid any text in image
+        prompt += " High quality, educational content, appropriate for all ages. IMPORTANT: No text, no words, no letters, no labels in the image. Pure visual illustration only."
         
         logger.info(f"Generating image for word '{request.word}' with prompt: {prompt[:100]}...")
 

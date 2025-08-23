@@ -236,7 +236,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import SpeechButton from '@/components/SpeechButton.vue'
 
@@ -267,7 +267,8 @@ const nextReviewTime = ref('Loading...')
 const sessionStats = ref({
   correct: 0,
   incorrect: 0,
-  total: 0
+  total: 0,
+  accuracy: 0
 })
 
 const API_BASE = 'http://localhost:8000'
@@ -295,7 +296,7 @@ const sessionDuration = computed(() => {
 })
 
 // Computed accuracy
-computed(() => {
+const accuracy = computed(() => {
   const total = sessionStats.value.correct + sessionStats.value.incorrect
   if (total === 0) return 0
   return (sessionStats.value.correct / total) * 100
@@ -442,7 +443,7 @@ const startNewSession = () => {
   currentCardIndex.value = 0
   showAnswer.value = false
   reviewComplete.value = false
-  sessionStats.value = { correct: 0, incorrect: 0, total: 0 }
+  sessionStats.value = { correct: 0, incorrect: 0, total: 0, accuracy: 0 }
   
   // Reload cards
   loadDueCards()
@@ -460,11 +461,10 @@ onUnmounted(() => {
   }
 })
 
-// Update accuracy reactively
-computed(() => {
+// Update accuracy reactively using watcher
+watch(() => [sessionStats.value.correct, sessionStats.value.total], () => {
   sessionStats.value.accuracy = sessionStats.value.total > 0 
     ? (sessionStats.value.correct / sessionStats.value.total) * 100 
     : 0
-  return sessionStats.value.accuracy
-})
+}, { immediate: true })
 </script>

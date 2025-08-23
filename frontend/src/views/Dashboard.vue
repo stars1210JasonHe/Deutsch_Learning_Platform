@@ -250,7 +250,16 @@ const userProgress = ref({
   weekly_goal_cards: 50
 })
 
-const recentSessions = ref([])
+// Define interface for session data
+interface Session {
+  id: number
+  type: string
+  started_at: string
+  accuracy_percentage?: number
+  questions_answered?: number
+}
+
+const recentSessions = ref<Session[]>([])
 const studyTimeToday = ref(0)
 const cardsThisWeek = ref(0)
 
