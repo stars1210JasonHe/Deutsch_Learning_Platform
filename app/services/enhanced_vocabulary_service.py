@@ -130,16 +130,31 @@ class EnhancedVocabularyService(VocabularyService):
             
             # 如果没找到但有建议，返回建议
             if result.get('suggestions_with_scores'):
+                # Convert enhanced suggestions to frontend format
+                formatted_suggestions = self._format_database_suggestions(result['suggestions_with_scores'])
                 return {
                     'found': False,
                     'original': lemma,
-                    'suggestions': result['suggestions_with_scores'],
+                    'suggestions': formatted_suggestions,
                     'message': f"'{lemma}' not found. Here are some suggestions:",
                     'source': 'enhanced_search_suggestions'
                 }
             
-            # 完全没找到，fallback到原逻辑
-            return await self.get_or_create_word(db, lemma, user)
+            # 完全没找到，尝试数据库fallback建议
+            print(f"No enhanced search results, trying database fallback for: {lemma}")
+            db_suggestions = await self._get_database_fallback_suggestions(db, lemma, max_suggestions=5)
+            
+            if db_suggestions:
+                return {
+                    'found': False,
+                    'original': lemma,
+                    'suggestions': db_suggestions,
+                    'message': f"'{lemma}' not found. Here are some similar words from our database:",
+                    'source': 'database_fallback_suggestions'
+                }
+            
+            # 最后才fallback到OpenAI，但加强验证
+            return await self._get_or_create_word_with_validated_openai(db, lemma, user)
             
         except Exception as e:
             logging.error("Enhanced search failed: %s", str(e))
@@ -696,6 +711,170 @@ class EnhancedVocabularyService(VocabularyService):
                 }
         
         return tables if tables else None
+    
+    def _format_database_suggestions(self, enhanced_suggestions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert enhanced search suggestions to frontend format"""
+        formatted = []
+        
+        for suggestion in enhanced_suggestions:
+            formatted.append({
+                'word': suggestion.get('word', ''),
+                'pos': suggestion.get('pos', 'unknown'),
+                'meaning': ', '.join(suggestion.get('translations', [])[:2]) or 'German word'
+            })
+        
+        return formatted
+    
+    async def _get_database_fallback_suggestions(self, db: Session, query: str, max_suggestions: int = 5) -> List[Dict[str, Any]]:
+        """Get fallback suggestions from database when OpenAI fails"""
+        from sqlalchemy import func
+        from app.models.word import Translation
+        
+        if len(query) < 2:
+            return []
+        
+        # Find words with similar length and first character
+        candidates = db.query(WordLemma).filter(
+            func.length(WordLemma.lemma) >= max(2, len(query) - 2),
+            func.length(WordLemma.lemma) <= len(query) + 2,
+            WordLemma.lemma.ilike(f'{query[0]}%')  # Same first character
+        ).limit(20).all()
+        
+        suggestions = []
+        for candidate in candidates:
+            # Simple similarity check
+            similarity = self._simple_similarity(query.lower(), candidate.lemma.lower())
+            
+            if similarity >= 0.4:  # 40% threshold
+                # Get translations
+                translations = db.query(Translation).filter(
+                    Translation.lemma_id == candidate.id,
+                    Translation.lang_code == 'en'
+                ).limit(2).all()
+                
+                meaning = ', '.join([t.text for t in translations]) or 'German word'
+                
+                suggestions.append({
+                    'word': candidate.lemma,
+                    'pos': candidate.pos or 'unknown',
+                    'meaning': meaning,
+                    'similarity': similarity
+                })
+        
+        # Sort by similarity and return top suggestions
+        suggestions.sort(key=lambda x: x['similarity'], reverse=True)
+        return suggestions[:max_suggestions]
+    
+    def _simple_similarity(self, word1: str, word2: str) -> float:
+        """Simple string similarity calculation"""
+        if word1 == word2:
+            return 1.0
+        
+        # Levenshtein distance
+        len1, len2 = len(word1), len(word2)
+        if len1 == 0 or len2 == 0:
+            return 0.0
+        
+        # Create distance matrix
+        dp = [[0] * (len2 + 1) for _ in range(len1 + 1)]
+        
+        for i in range(len1 + 1):
+            dp[i][0] = i
+        for j in range(len2 + 1):
+            dp[0][j] = j
+        
+        for i in range(1, len1 + 1):
+            for j in range(1, len2 + 1):
+                if word1[i-1] == word2[j-1]:
+                    dp[i][j] = dp[i-1][j-1]
+                else:
+                    dp[i][j] = 1 + min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+        
+        # Convert to similarity (0.0 to 1.0)
+        max_len = max(len1, len2)
+        return 1.0 - (dp[len1][len2] / max_len)
+    
+    async def _get_or_create_word_with_validated_openai(self, db: Session, lemma: str, user: User) -> Dict[str, Any]:
+        """Enhanced OpenAI fallback with validation and database suggestions as backup"""
+        try:
+            # Try OpenAI first
+            openai_result = await self.get_or_create_word(db, lemma, user)
+            
+            # If OpenAI returned suggestions, validate them
+            if not openai_result.get('found', True) and openai_result.get('suggestions'):
+                openai_suggestions = openai_result.get('suggestions', [])
+                
+                # If OpenAI suggestions are poor quality or empty, use database fallback
+                if len(openai_suggestions) < 3 or self._are_suggestions_poor_quality(openai_suggestions):
+                    print(f"OpenAI suggestions poor quality, using database fallback for: {lemma}")
+                    db_suggestions = await self._get_database_fallback_suggestions(db, lemma, max_suggestions=5)
+                    
+                    if db_suggestions:
+                        return {
+                            'found': False,
+                            'original': lemma,
+                            'suggestions': db_suggestions,
+                            'message': f"'{lemma}' not found. Here are some similar words:",
+                            'source': 'database_validated_suggestions'
+                        }
+                
+                # Otherwise use OpenAI suggestions (they're already validated by OpenAIService)
+                return openai_result
+            
+            return openai_result
+            
+        except Exception as e:
+            print(f"OpenAI validation failed for {lemma}: {e}")
+            # Final fallback to database only
+            db_suggestions = await self._get_database_fallback_suggestions(db, lemma, max_suggestions=5)
+            
+            if db_suggestions:
+                return {
+                    'found': False,
+                    'original': lemma,
+                    'suggestions': db_suggestions,
+                    'message': f"'{lemma}' not found. Here are some similar words:",
+                    'source': 'database_final_fallback'
+                }
+            else:
+                return {
+                    'found': False,
+                    'original': lemma,
+                    'suggestions': [],
+                    'message': f"'{lemma}' not found and no similar words available.",
+                    'source': 'no_suggestions'
+                }
+    
+    def _are_suggestions_poor_quality(self, suggestions: List[Dict[str, Any]]) -> bool:
+        """Check if OpenAI suggestions are of poor quality"""
+        if not suggestions:
+            return True
+            
+        poor_indicators = 0
+        
+        for suggestion in suggestions:
+            word = suggestion.get('word', '').strip().lower()
+            pos = suggestion.get('pos', '').strip().lower()
+            meaning = suggestion.get('meaning', '').strip().lower()
+            
+            # Check for English words
+            if word in {'the', 'and', 'or', 'but', 'you', 'me', 'this', 'that'}:
+                poor_indicators += 1
+                
+            # Check for technical terms
+            if any(tech in word for tech in ['api', 'http', 'json', 'xml', 'html']):
+                poor_indicators += 1
+                
+            # Check for very short or nonsensical words
+            if len(word) <= 2 and word not in {'ja', 'zu', 'am', 'im', 'es', 'er'}:
+                poor_indicators += 1
+                
+            # Check for missing or poor meanings
+            if not meaning or len(meaning) < 3:
+                poor_indicators += 1
+        
+        # Consider suggestions poor if more than half have quality issues
+        return poor_indicators > len(suggestions) / 2
     
     def _analyze_completeness_gaps(self, word_data: Dict[str, Any]) -> 'CompletenessAnalysis':
         """分析词条的完备性缺口"""

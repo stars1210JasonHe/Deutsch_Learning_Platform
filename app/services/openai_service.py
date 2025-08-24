@@ -100,6 +100,15 @@ class OpenAIService:
             "message": "'{word}' is not a recognized German word. Here are some similar words you might be looking for:"
         }}
         
+        CRITICAL RULES FOR SUGGESTIONS:
+        1. ONLY suggest real, common German words (A1-B2 level preferred)
+        2. Suggestions must be phonetically or orthographically similar to "{word}"
+        3. NO English words, NO made-up words, NO technical terms
+        4. Focus on basic vocabulary: nouns (der/die/das), common verbs, adjectives
+        5. Prefer words that German learners would actually need
+        6. If "{word}" looks like a typo of a German word, prioritize that word
+        7. Maximum 5 suggestions, ranked by similarity and usefulness
+        
         Examples:
         - "nim" → found: false (not a valid German word, suggest "nehmen")
         - "gehe" → found: true (valid inflected form of "gehen")
@@ -116,7 +125,14 @@ class OpenAIService:
                 max_tokens=1000
             )
             
-            return json.loads(response.choices[0].message.content)
+            raw_result = json.loads(response.choices[0].message.content)
+            
+            # Validate and clean suggestions if word not found
+            if not raw_result.get("found", True):
+                clean_suggestions = self._validate_suggestions(raw_result.get("suggestions", []))
+                raw_result["suggestions"] = clean_suggestions
+            
+            return raw_result
             
         except Exception as e:
             logging.error(f"OpenAI API error for word '{word}': {str(e)}")
@@ -128,6 +144,91 @@ class OpenAIService:
                 raise RuntimeError(f"Rate limit exceeded. Please try again later. Error: {str(e)}")
             else:
                 raise RuntimeError(f"API request failed: {str(e)}")
+
+    def _validate_suggestions(self, suggestions: list) -> list:
+        """Validate and filter OpenAI suggestions to ensure quality"""
+        if not suggestions or not isinstance(suggestions, list):
+            return []
+        
+        # Common German words that should be prioritized
+        german_indicators = {
+            'ä', 'ö', 'ü', 'ß', 'der', 'die', 'das', 'ein', 'eine', 'und', 
+            'ist', 'hat', 'sein', 'haben', 'werden', 'können', 'müssen', 'sollen'
+        }
+        
+        # Words to filter out (English, technical, inappropriate)
+        forbidden_words = {
+            'the', 'and', 'or', 'but', 'if', 'then', 'when', 'where', 'what', 'how',
+            'you', 'me', 'he', 'she', 'it', 'we', 'they', 'this', 'that', 'these',
+            'api', 'http', 'www', 'com', 'org', 'net', 'html', 'xml', 'json',
+            'error', 'null', 'undefined', 'function', 'class', 'object', 'array'
+        }
+        
+        valid_suggestions = []
+        seen_words = set()
+        
+        for suggestion in suggestions:
+            if not isinstance(suggestion, dict):
+                continue
+                
+            word = suggestion.get('word', '').strip().lower()
+            pos = suggestion.get('pos', '').strip().lower()
+            meaning = suggestion.get('meaning', '').strip()
+            
+            # Skip if missing required fields
+            if not word or not pos or not meaning:
+                continue
+                
+            # Skip duplicates
+            if word in seen_words:
+                continue
+                
+            # Filter out forbidden words
+            if word in forbidden_words:
+                continue
+                
+            # Filter out words that are clearly English
+            if pos in ['article', 'preposition'] and word in ['the', 'and', 'or', 'but', 'in', 'on', 'at']:
+                continue
+                
+            # Filter out single characters or very short "words" unless they're German
+            if len(word) <= 2 and word not in {'zu', 'im', 'am', 'es', 'er', 'du', 'ja'}:
+                continue
+                
+            # Validate POS tags
+            valid_pos = {'noun', 'verb', 'adjective', 'adverb', 'preposition', 'article', 'pronoun'}
+            if pos not in valid_pos:
+                continue
+                
+            # Prefer words with German characteristics
+            priority_score = 0
+            if any(char in word for char in ['ä', 'ö', 'ü', 'ß']):
+                priority_score += 2
+            if pos == 'noun' and len(word) >= 4:  # German nouns tend to be longer
+                priority_score += 1
+            if word.endswith(('en', 'er', 'el', 'ig', 'lich', 'ung', 'heit', 'keit', 'schaft')):
+                priority_score += 1
+                
+            valid_suggestions.append({
+                'word': suggestion['word'],  # Keep original capitalization
+                'pos': pos,
+                'meaning': meaning,
+                '_priority': priority_score
+            })
+            seen_words.add(word)
+            
+            # Limit to 5 suggestions
+            if len(valid_suggestions) >= 5:
+                break
+        
+        # Sort by priority score (higher is better) and return
+        valid_suggestions.sort(key=lambda x: x.get('_priority', 0), reverse=True)
+        
+        # Remove internal priority field before returning
+        for suggestion in valid_suggestions:
+            suggestion.pop('_priority', None)
+            
+        return valid_suggestions[:5]
 
     async def translate_sentence(self, sentence: str) -> Dict[str, Any]:
         """Translate sentence and provide word-by-word gloss"""
