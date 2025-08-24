@@ -1,31 +1,37 @@
-# Vibe Deutsch - German Learning Platform 🇩🇪
+# Vibe Deutsch - German Learning Platform
 
-A comprehensive German learning platform with AI-powered vocabulary analysis, chat assistance, image generation, and intelligent learning features.
+A production-ready German learning platform with AI-powered vocabulary analysis, interactive chat, image generation, and comprehensive learning features.
 
-## ✨ Key Features
+## ✨ Features
 
-- 🔍 **Smart Word Search**: Database-first lookup with OpenAI fallback for unknown words
-- 💬 **Interactive Chat**: Ask questions about any German word with configurable conversation rounds
-- 🎨 **AI Image Generation**: Create educational images for vocabulary using DALL-E 2/3
-- 📚 **Complete Grammar Display**: Articles, plurals, verb conjugations across all tenses  
-- 🌐 **Multi-language Support**: German, English, and Chinese translations
-- 📝 **Interactive Exams**: Fill-in-the-blank, multiple choice, and spaced repetition
-- ⭐ **Favorites System**: Save words for focused study
-- 📊 **Progress Tracking**: Search history and learning analytics
-- 🎯 **SRS (Spaced Repetition)**: Intelligent review scheduling
-- ⚡ **Intelligent Caching**: Minimizes API costs with smart response caching
-- 📋 **Bulk Import**: Excel and PDF vocabulary import with auto-enhancement
-- 🔐 **Persistent Authentication**: Remember me for 90 days, automatic token refresh
-- 🐳 **Docker Ready**: One-click deployment on Synology NAS and other platforms
+### Core Learning
+- **Smart Word Search** - Database-first lookup with OpenAI fallback
+- **Complete Grammar Display** - Articles, plurals, verb conjugations
+- **Multi-language Support** - German, English, Chinese translations
+- **Interactive Exams** - Fill-in-the-blank, multiple choice questions
+- **Spaced Repetition System** - Intelligent review scheduling
+- **Favorites & Progress Tracking** - Save words and monitor learning
+
+### AI-Powered Features
+- **Interactive Chat** - Educational conversations about German words
+- **AI Image Generation** - Visual vocabulary aids using DALL-E
+- **Smart Suggestions** - AI-enhanced word recommendations
+- **Auto-Enhancement** - Missing grammar and translations generated
+
+### Production Features
+- **Secure Authentication** - JWT with refresh tokens, 90-day sessions
+- **Docker Deployment** - One-click setup for NAS and servers
+- **Bulk Import** - Excel/PDF vocabulary import with processing
+- **Intelligent Caching** - Minimizes API costs
+- **Enterprise Security** - Security headers, rate limiting, HTTPS support
 
 ## 🛠 Tech Stack
 
-- **Backend**: FastAPI + SQLAlchemy + SQLite
-- **Frontend**: Vue 3 + TypeScript + Vite + Tailwind CSS + Pinia
-- **AI**: OpenAI API via OpenRouter (GPT-4o-mini, DALL-E 2/3)
-- **Authentication**: JWT with refresh tokens and persistent sessions
-- **Package Management**: UV (Python) + npm (Frontend)
-- **Deployment**: Docker + Docker Compose
+- **Backend**: FastAPI, SQLAlchemy, SQLite
+- **Frontend**: Vue 3, TypeScript, Tailwind CSS, Pinia
+- **AI**: OpenAI API via OpenRouter
+- **Security**: JWT authentication, security middleware
+- **Infrastructure**: Docker, UV package management
 
 ## 🚀 Quick Start
 
@@ -99,86 +105,61 @@ npm run dev
 ```
 LanguageLearning/
 ├── app/                    # FastAPI backend
-│   ├── api/               # API endpoints (auth, translate, chat, images, etc.)
-│   ├── core/              # Configuration & security
-│   ├── db/                # Database setup
+│   ├── api/               # REST endpoints (auth, translate, chat, images)
+│   ├── core/              # Configuration, security, dependencies
+│   ├── db/                # Database models and session management
 │   ├── models/            # SQLAlchemy models
-│   ├── schemas/           # Pydantic schemas
-│   └── services/          # Business logic
-├── frontend/              # Vue 3 application
+│   ├── schemas/           # Pydantic request/response schemas
+│   └── services/          # Business logic and AI integrations
+├── frontend/              # Vue 3 TypeScript application
 │   ├── src/
-│   │   ├── components/    # Reusable components (ChatModal, ImageModal, etc.)
+│   │   ├── components/    # Reusable UI components
 │   │   ├── views/         # Page components
-│   │   ├── stores/        # Pinia state management (auth, settings, search)
-│   │   └── router/        # Vue Router setup
-├── tools/                 # Utility and processing scripts
-│   ├── fixes/            # Database repair scripts
-│   ├── checks/           # Analysis scripts
-│   ├── imports/          # Import utilities
-│   └── tests/            # Development test scripts
+│   │   ├── stores/        # Pinia state management
+│   │   └── router/        # Vue Router configuration
+├── scripts/               # Production vocabulary management
 ├── tests/                 # API and integration tests
-├── scripts/               # Database management scripts
-├── data/                  # SQLite database files
-├── Sources/               # PDF sources and dictionary files
-├── Screenshots/           # Documentation images
-├── MD/                    # Documentation files
-├── logs/                  # Processing logs
-├── Dockerfile            # Docker build configuration
-├── docker-compose.yml    # Docker orchestration
-└── README.md             # This file
+├── archive/               # Development tools (archived)
+├── MD/                    # Organized documentation
+│   ├── deployment/        # Deployment guides
+│   ├── security/          # Security documentation
+│   └── development/       # Development guides
+├── data/                  # SQLite database
+├── docker-compose.yml     # Container orchestration
+└── Dockerfile             # Multi-stage build configuration
 ```
 
-## 🔐 Authentication & Security
+## 🔐 Security & Authentication
 
-### Advanced Session Management
-- **Persistent Login**: Sessions survive browser restarts and network disconnections
-- **Remember Me**: Optional 90-day extended sessions
-- **Automatic Refresh**: Tokens refresh automatically before expiry
-- **Smart Recovery**: 401 errors trigger seamless token refresh
-- **HTTP Compatible**: Secure authentication over HTTP for local networks
+- **JWT Authentication** - Access and refresh tokens with automatic renewal
+- **Security Headers** - XSS, CSRF, clickjacking protection
+- **Rate Limiting** - Brute force protection
+- **Environment-aware** - HTTP/HTTPS deployment flexibility
+- **Cookie Security** - HttpOnly, secure, SameSite protection
 
-### Test Account
-For testing purposes:
-- **Email**: `heyeqiu1210@gmail.com`
-- **Password**: `123456`
+### Demo Account
+- Email: `demo@example.com`
+- Password: `demo123`
 
-## 🆕 New AI-Powered Features
+## 📋 API Endpoints
 
-### Chat Assistant
-- 💬 Interactive conversations about any German word
-- 🎯 Educational context with grammar, usage, and cultural information
-- ⚙️ Configurable conversation rounds (default: 10)
-- 📋 Copy/download conversations for review
-- 🧠 Powered by OpenAI via OpenRouter
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - Login with remember me
+- `POST /api/auth/refresh` - Token refresh
+- `GET /api/auth/me` - Current user info
 
-### AI Image Generation
-- 🎨 Generate educational images for vocabulary words
-- 🖼️ Multiple styles: Educational, Cartoon, Semi-realistic
-- 🔧 Configurable models: DALL-E 2 (fast) or DALL-E 3 (quality)
-- 📐 Multiple size options (256x256 to 1792x1024)
-- 💾 Download and copy functionality
+### Word & Translation
+- `POST /api/translate/word` - Word lookup with AI fallback
+- `POST /api/translate/sentence` - Sentence translation
+- `POST /api/chat/word` - Interactive word chat
+- `POST /api/images/generate` - Educational image generation
 
-## 🔧 Key Features Detail
-
-### Enhanced Search System
-- **Database Priority**: Instant lookup from local vocabulary database
-- **AI Enhancement**: Unknown words analyzed via OpenAI with grammatical information
-- **Smart Suggestions**: Non-German inputs get relevant German word suggestions
-- **Multiple Choice**: When search returns multiple options, user can select the intended word
-- **Complete Grammar**: Articles (der/die/das), plurals, and full verb conjugation tables
-
-### Vocabulary Management
-- **Excel Import**: Bulk import from structured Excel files
-- **PDF Processing**: Extract vocabulary from Collins dictionary PDFs
-- **Auto-Enhancement**: Missing translations, examples, and grammar auto-generated
-- **Duplicate Cleanup**: Intelligent merging of related word forms
-- **Quality Assurance**: Comprehensive validation and error correction
-
-### Exam & Learning System
-- **Multiple Formats**: Fill-in-the-blank, multiple choice, translation exercises
-- **Adaptive Difficulty**: Questions adjust based on performance
-- **Progress Tracking**: Detailed analytics and improvement metrics
-- **Spaced Repetition**: SRS system for optimal retention
+### Learning
+- `GET /api/favorites` - Saved words
+- `GET /api/search/history` - Search history  
+- `POST /api/exam/generate` - Practice exams
+- `GET /api/srs/review` - Spaced repetition
 
 ## 🐳 Docker Deployment
 
@@ -198,7 +179,6 @@ docker-compose down
 ```
 
 ### Environment Configuration
-Required environment variables in `.env`:
 ```bash
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_BASE_URL=https://openrouter.ai/api/v1
@@ -207,130 +187,46 @@ DATABASE_URL=sqlite:///./data/app.db
 SECRET_KEY=your_32_character_secret_key
 ```
 
-## 🔌 API Endpoints
+## 🧪 Development
 
-### Authentication
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login with remember me option
-- `POST /api/auth/refresh` - Refresh access token
-- `GET /api/auth/me` - Get current user info
-
-### Word & Translation
-- `POST /api/translate/word` - Word lookup with AI fallback
-- `POST /api/translate/sentence` - Sentence translation with gloss
-- `POST /api/translate/word/select` - Select from AI suggestions
-- `POST /api/translate/word/choice` - Select from multiple choice options
-
-### AI Features
-- `POST /api/chat/word` - Chat about a specific word
-- `POST /api/images/generate` - Generate educational images
-
-### Learning Features  
-- `GET /api/search/history` - Search history
-- `GET /api/favorites` - Saved words
-- `POST /api/exam/generate` - Create practice exam
-- `GET /api/srs/review` - Spaced repetition cards
-
-## 🧪 Testing & Development
-
-### Running Tests
 ```bash
-# Run all tests
+# Run tests
 uv run python tests/run_tests.py
 
-# Test specific functionality
-uv run python tests/test_api_endpoints.py
-uv run python tests/test_live_api.py
+# Vocabulary management  
+uv run python scripts/vocabulary_manager.py --help
 
 # Frontend E2E tests
 cd frontend && npm run test
 ```
 
-### Development Commands
-```bash
-# Database analysis
-uv run python scripts/checks/inspect_database.py
-
-# Fix database issues
-uv run python scripts/fixes/enhanced_database_fixer.py --mode all
-
-# Import vocabulary
-uv run python scripts/import_excel_vocabulary.py
-
-# Process Collins dictionary
-uv run python tools/complete_collins_processor.py
-```
-
-### Unicode Support (Windows)
-For scripts handling German characters (ä, ö, ü, ß):
-```bash
-set PYTHONIOENCODING=utf-8 && uv run python script.py
-# OR
-uv run python script.py 2>nul
-```
-
 ## ⚠️ Troubleshooting
 
-### Common Issues
-- **401 OpenAI Error**: Check `.env` file for correct API key and base URL
-- **Database Errors**: Ensure `data/` directory exists and is writable
-- **Frontend Build Issues**: Clear cache with `rm -rf frontend/node_modules && npm install`
-- **CORS Issues**: Backend CORS settings in `app/main.py`, frontend proxy in `vite.config.ts`
-- **Port 3000 Required**: Frontend must run on port 3000 for proxy configuration
-
-### Chat/Image Features
-- **Chat Errors**: Verify OpenAI API key and OpenRouter configuration
-- **Image Generation Fails**: Check model availability and size settings
-- **Modal Issues**: Clear browser cache and refresh page
-
-### Authentication Debugging
-```bash
-# Check token status in browser console
-localStorage.getItem('token')
-localStorage.getItem('refreshToken')
-localStorage.getItem('tokenExpiry')
-
-# Backend token verification
-curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8000/api/auth/me
-```
-
-## 🚀 Production Deployment
-
-### Security Checklist
-- [ ] Change default `SECRET_KEY` in production
-- [ ] Use strong OpenAI API key
-- [ ] Configure firewall rules for port 8000
-- [ ] Set up SSL/TLS if exposing to internet
-- [ ] Regular database backups
-- [ ] Monitor authentication logs
-
-### Performance Optimization
-- **Database**: Use SSD storage for better performance
-- **Memory**: Allocate 2-4GB RAM for optimal performance with AI features
-- **Network**: Use CDN for static assets in production
-- **Caching**: OpenAI responses cached automatically to minimize costs
+- **OpenAI Errors**: Check API key in `.env`
+- **Database Issues**: Ensure `data/` directory exists
+- **CORS Problems**: Frontend must run on port 3000
+- **Build Failures**: Clear node_modules and reinstall
 
 ## 📚 Documentation
 
-- **[CLAUDE.md](MD/CLAUDE.md)**: Development guide and architecture details
-- **[DEPLOY-SYNOLOGY.md](MD/DEPLOY-SYNOLOGY.md)**: Synology NAS deployment guide
-- **[SEARCH-LOGIC-COMPLETE.md](MD/SEARCH-LOGIC-COMPLETE.md)**: Search system implementation
-- **[GERMAN-UMLAUT-FIX.md](MD/GERMAN-UMLAUT-FIX.md)**: Unicode handling solutions
+- **[MD/deployment/](MD/deployment/)** - Deployment guides
+- **[MD/security/](MD/security/)** - Security documentation  
+- **[MD/development/](MD/development/)** - Development guides
+- **[scripts/README.md](scripts/README.md)** - Vocabulary management
 
-## 📄 License
+## Production Deployment
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Security Checklist
+- [ ] Change `SECRET_KEY` in production
+- [ ] Configure SSL/TLS for internet exposure
+- [ ] Set up regular database backups
+- [ ] Monitor authentication logs
 
-## 🙏 Acknowledgments
-
-- OpenAI for language model capabilities and image generation
-- Vue.js and FastAPI communities for excellent frameworks
-- Docker for containerization technology
-- Synology for NAS platform compatibility
-- German language learning community for inspiration and feedback
+### Performance
+- Use SSD storage for database
+- Allocate 2-4GB RAM for AI features
+- OpenAI responses cached automatically
 
 ---
 
-🎉 **Ready to learn German?** Deploy with Docker and start your language journey with AI-powered assistance!
-
-📧 **Questions?** Check the documentation in the `MD/` folder or open an issue on GitHub.
+**Ready to learn German?** Deploy with Docker and start your AI-powered language journey!

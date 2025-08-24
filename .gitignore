@@ -28,18 +28,10 @@ venv/
 ENV/
 env/
 
-# Claude
-.claude/
-
-# Source
-Sources/
-
-# Environment variables
+# Environment Variables
 .env
-.env.backup
-.env.local
-.env.*.local
-.claude/
+.env.*
+!.env.example
 
 # Database
 data/
@@ -47,30 +39,17 @@ data/
 *.sqlite
 *.sqlite3
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Sources & Documentation
+Sources/
+Screenshots/
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Frontend
-frontend/node_modules/
+# Build Artifacts
+build/
+dist/
 frontend/dist/
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
+frontend/node_modules/
 
-# Logs
+# Logs & Debug
 logs/
 *.log
 npm-debug.log*
@@ -81,3 +60,29 @@ yarn-error.log*
 .coverage
 htmlcov/
 .pytest_cache/
+frontend/test-results/
+frontend/playwright-report/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build Cache
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Archive (development files)
+archive/
