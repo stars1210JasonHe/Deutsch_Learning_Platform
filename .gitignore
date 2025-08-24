@@ -28,11 +28,18 @@ venv/
 ENV/
 env/
 
+# Claude
+.claude/
+
+# Source
+Sources/
+
 # Environment variables
 .env
 .env.backup
 .env.local
 .env.*.local
+.claude/
 
 # Database
 data/
