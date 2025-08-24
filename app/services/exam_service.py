@@ -13,11 +13,26 @@ from app.models.exam import Exam, ExamSection, ExamQuestion, ExamAttempt, ExamRe
 from app.models.word import WordLemma
 from app.models.user import User
 from app.services.openai_service import OpenAIService
+from app.core.config import settings
+from openai import AsyncOpenAI
 
 
 class ExamService:
     def __init__(self):
         self.openai_service = OpenAIService()
+        
+        # Create dedicated exam client if separate credentials provided
+        if settings.openai_exam_api_key:
+            self.exam_client = AsyncOpenAI(
+                api_key=settings.openai_exam_api_key,
+                base_url=settings.openai_exam_base_url or "https://api.openai.com/v1"
+            )
+            # Force GPT-4o for now to avoid GPT-5 issues
+            self.exam_model = "gpt-4o"  # Override to use stable model
+        else:
+            # Fall back to main OpenAI service
+            self.exam_client = self.openai_service.client
+            self.exam_model = settings.openai_exam_model or self.openai_service.model
     
     async def generate_exam(
         self,
@@ -70,18 +85,23 @@ class ExamService:
             vocabulary=vocabulary,
         )
         
-        # Create exam in database
-        exam = await self._create_exam_in_db(
-            db, user, title, level, topics, exam_content
-        )
-        
-        return {
-            "exam_id": exam.id,
-            "title": exam.title,
-            "level": exam.cefr_level,
-            "total_questions": exam.total_questions,
-            "sections": await self._format_exam_for_frontend(exam)
-        }
+        try:
+            # Create exam in database
+            exam = await self._create_exam_in_db(
+                db, user, title, level, topics, exam_content
+            )
+            
+            return {
+                "exam_id": exam.id,
+                "title": exam.title,
+                "level": exam.cefr_level,
+                "total_questions": exam.total_questions,
+                "sections": await self._format_exam_for_frontend(exam)
+            }
+        except Exception as e:
+            logging.error(f"Failed to create exam in database: {e}")
+            logging.error(f"Error type: {type(e).__name__}")
+            raise e
     
     async def _analyze_exam_description(
         self,
@@ -116,8 +136,25 @@ Focus on the user's specific needs and weaknesses mentioned in the description.
 """
         
         try:
-            response = await self.openai_service.complete_chat(prompt)
-            result = json.loads(response.strip())
+            # Use the main OpenAI client for description analysis (fallback)
+            if not self.openai_service.client:
+                return self._simple_description_analysis(description, level)
+                
+            response = await self.openai_service.client.chat.completions.create(
+                model=self.openai_service.analysis_model,
+                messages=[
+                    {"role": "system", "content": "Analyze exam requests and return JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=1.0  # Use default temperature
+            )
+            
+            content = response.choices[0].message.content.strip()
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.endswith("```"):
+                content = content[:-3]
+            result = json.loads(content.strip())
             
             # Validate and set defaults
             if 'topics' not in result or not result['topics']:
@@ -198,6 +235,8 @@ Focus on the user's specific needs and weaknesses mentioned in the description.
         def _fallback_template() -> Dict[str, Any]:
             per_section = max(1, count // 2)
             type_share = max(1, count // max(1, len(question_types)))
+            # Set time limit to approximately 18 seconds per question (3 minutes for 10 questions)
+            time_per_question = 0.3  # 18 seconds = 0.3 minutes
             return {
                 "sections": [
                     {
@@ -209,16 +248,24 @@ Focus on the user's specific needs and weaknesses mentioned in the description.
                 ],
                 "metadata": {
                     "level": level,
-                    "estimated_time_minutes": count * 2,
+                    "estimated_time_minutes": max(3, int(count * time_per_question)),
                     "total_points": count,
                 },
             }
 
-        if not getattr(self.openai_service, "client", None):
+        if not self.exam_client:
             return _fallback_template()
 
         vocab_sample = random.sample(vocabulary, min(len(vocabulary), 20))
-        vocab_text = ", ".join([f"{w['lemma']} ({w['pos']})" for w in vocab_sample])
+        # Safely handle German characters in vocabulary
+        vocab_items = []
+        for w in vocab_sample:
+            try:
+                vocab_items.append(f"{w['lemma']} ({w['pos']})")
+            except (UnicodeEncodeError, KeyError):
+                # Skip problematic vocabulary items
+                continue
+        vocab_text = ", ".join(vocab_items[:10])  # Limit to 10 items to avoid long prompts
 
         description_context = f"\n\nSpecial Requirements: {description}" if description else ""
         
@@ -243,16 +290,18 @@ Rules:
 - Ensure sum(types) across all sections equals {count} total questions.
 - Prefer balanced distribution across requested types; do not invent types not requested.
 - Keep section count between 1 and 3.
+- Set time limit to 3-5 minutes total (approximately 18-30 seconds per question for quick assessment).
 """
 
         try:
-            response = await self.openai_service.client.chat.completions.create(
-                model=self.openai_service.model,
+            response = await self.exam_client.chat.completions.create(
+                model=self.exam_model,
                 messages=[
-                    {"role": "system", "content": "You create concise JSON blueprints for exams. Output valid JSON only."},
+                    {"role": "system", "content": "You are an expert German language teacher creating educational exams. Create concise, pedagogically sound JSON blueprints. Output valid JSON only."},
                     {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
+                ]
+                # max_tokens=2000,
+                # timeout=30.0
             )
 
             content = response.choices[0].message.content.strip()
@@ -272,7 +321,9 @@ Rules:
 
             return template
         except Exception as e:
-            logging.warning(f"OpenAI template generation failed: {e}")
+            logging.error(f"OpenAI template generation failed: {e}")
+            logging.error(f"Error type: {type(e).__name__}")
+            # Always use fallback when OpenAI fails
             return _fallback_template()
 
     async def _generate_exam_from_template(
@@ -284,11 +335,22 @@ Rules:
     ) -> Dict[str, Any]:
         """Generate concrete exam questions from a template. Prefer OpenAI; fallback deterministic."""
 
-        if not getattr(self.openai_service, "client", None):
+        if not self.exam_client:
             return self._create_fallback_exam(level, template.get("metadata", {}).get("total_points", 10))
 
         vocab_sample = random.sample(vocabulary, min(len(vocabulary), 30))
-        vocab_json = json.dumps(vocab_sample, ensure_ascii=False)
+        # Safely encode vocabulary for JSON
+        safe_vocab = []
+        for w in vocab_sample:
+            try:
+                safe_vocab.append({
+                    'lemma': str(w.get('lemma', '')),
+                    'pos': str(w.get('pos', '')),
+                    'translations': [str(t) for t in w.get('translations', [])]
+                })
+            except (UnicodeEncodeError, AttributeError):
+                continue
+        vocab_json = json.dumps(safe_vocab[:15], ensure_ascii=True)  # Use ASCII encoding
         template_json = json.dumps(template, ensure_ascii=False)
 
         prompt = f"""
@@ -327,26 +389,27 @@ Strict rules:
 - The number of questions per section and per type MUST exactly match the TEMPLATE "types" counts.
 - For MCQ, always provide 4 options in content.options.
 - For CLOZE, CRITICAL FORMAT: content must have both "text" field with [blankId] placeholders AND "blanks" array. Example:
-  content: {
+  content: {{
     "text": "Der Hund ist [b1] und die Katze ist [b2].",
     "blanks": [
-      {"id": "b1", "alternatives": ["groß", "klein"]},
-      {"id": "b2", "alternatives": ["schwarz", "weiß"]}
+      {{"id": "b1", "alternatives": ["groß", "klein"]}},
+      {{"id": "b2", "alternatives": ["schwarz", "weiß"]}}
     ]
-  }
+  }}
   correct_answer maps blank ids to arrays of acceptable answers.
 - For MATCHING, use 5-6 pairs in content.pairs.
 - Use natural, CEFR-appropriate German sentences; avoid English unless asked in prompt.
 """
 
         try:
-            response = await self.openai_service.client.chat.completions.create(
-                model=self.openai_service.model,
+            response = await self.exam_client.chat.completions.create(
+                model=self.exam_model,
                 messages=[
-                    {"role": "system", "content": "You turn exam templates into concrete question sets. Output valid JSON only."},
+                    {"role": "system", "content": "You are an expert German language teacher. Turn exam templates into concrete, educational question sets. Create engaging, CEFR-appropriate German questions. Output valid JSON only."},
                     {"role": "user", "content": prompt},
-                ],
-                temperature=0.6,
+                ]
+                    # max_tokens=3000,
+                    # timeout=45.0
             )
 
             content = response.choices[0].message.content.strip()
@@ -356,11 +419,15 @@ Strict rules:
                 content = content[:-3]
             return json.loads(content.strip())
         except Exception as e:
-            logging.warning(f"OpenAI question generation failed: {e}")
+            logging.error(f"OpenAI question generation failed: {e}")
+            logging.error(f"Error type: {type(e).__name__}")
+            # Always use fallback when OpenAI fails
             return self._create_fallback_exam(level, template.get("metadata", {}).get("total_points", 10))
     
     def _create_fallback_exam(self, level: str, count: int) -> Dict[str, Any]:
         """Create a basic exam structure when OpenAI fails"""
+        # Set time limit to approximately 18 seconds per question (3 minutes for 10 questions)
+        time_per_question = 0.3  # 18 seconds = 0.3 minutes
         return {
             "sections": [
                 {
@@ -383,7 +450,7 @@ Strict rules:
             ],
             "metadata": {
                 "level": level,
-                "estimated_time_minutes": count * 2,
+                "estimated_time_minutes": max(3, int(count * time_per_question)),
                 "total_points": count
             }
         }

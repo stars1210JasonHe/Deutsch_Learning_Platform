@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     openai_exam_model: Optional[str] = None  # For exam generation
     openai_image_model: Optional[str] = None  # For image generation (DALL-E)
     
+    # Separate OpenAI configuration for exam generation
+    openai_exam_api_key: Optional[str] = None  # Direct OpenAI API key for exams
+    openai_exam_base_url: Optional[str] = None  # For exam generation (defaults to direct OpenAI)
+    
     # Database
     database_url: str = "sqlite:///./data/app.db"
     

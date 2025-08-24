@@ -435,6 +435,7 @@ const submitting = ref(false)
 const submitted = ref(false)
 const selectedMatching = ref<{ left: number | null, right: number | null }>({ left: null, right: null })
 const shuffledRightItems = ref<Array<{ text: string, originalIndex: number }>>([])
+const attemptStartTime = ref<number | null>(null)
 
 const API_BASE = 'http://localhost:8000'
 const examId = route.params.id as string
@@ -495,6 +496,7 @@ const startExam = async () => {
     if (response.ok) {
       const data = await response.json()
       attemptId.value = data.attempt_id
+      attemptStartTime.value = Date.now()
       examStarted.value = true
       timeRemaining.value = (exam.value?.time_limit_minutes || 30) * 60
       startTimer()
@@ -684,21 +686,34 @@ const submitExam = async () => {
   showSubmitConfirmation.value = false
   
   try {
-    // Submit all answers
+    // Submit all answers with proper error handling
+    const submissionErrors = []
+    
     for (const [questionId, answer] of Object.entries(selectedAnswers.value)) {
-      await fetch(`${API_BASE}/exam/submit-answer`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          attempt_id: attemptId.value,
-          question_id: parseInt(questionId),
-          answer: answer,
-          time_taken_seconds: 30 // Placeholder
+      try {
+        const response = await fetch(`${API_BASE}/exam/submit-answer`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            attempt_id: attemptId.value,
+            question_id: parseInt(questionId),
+            answer: answer,
+            time_taken_seconds: Math.floor((Date.now() - (attemptStartTime.value || Date.now())) / 1000)
+          })
         })
-      })
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          submissionErrors.push(`Question ${questionId}: ${errorData.detail || 'Submission failed'}`)
+        }
+      } catch (answerError) {
+        submissionErrors.push(`Question ${questionId}: Network error`)
+        console.warn(`Failed to submit answer for question ${questionId}:`, answerError)
+        // Continue submitting other answers even if one fails
+      }
     }
 
-    // Complete the exam
+    // Complete the exam regardless of individual answer submission errors
     const response = await fetch(`${API_BASE}/exam/complete`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -708,11 +723,18 @@ const submitExam = async () => {
     if (response.ok) {
       stopTimer()
       submitted.value = true
+      
+      // Show warnings if some submissions failed but exam completed
+      if (submissionErrors.length > 0) {
+        console.warn('Some answer submissions failed:', submissionErrors)
+      }
     } else {
-      error.value = 'Failed to submit exam'
+      const errorData = await response.json().catch(() => ({}))
+      error.value = `Failed to complete exam: ${errorData.detail || 'Unknown error'}`
     }
   } catch (err) {
-    error.value = 'Network error submitting exam'
+    error.value = `Network error submitting exam: ${err.message || 'Unknown error'}`
+    console.error('Exam submission error:', err)
   } finally {
     submitting.value = false
   }
