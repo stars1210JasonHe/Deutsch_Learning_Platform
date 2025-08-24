@@ -266,6 +266,114 @@ class OpenAIService:
         except Exception as e:
             raise
 
+    async def detect_language(self, text: str) -> Dict[str, Any]:
+        """Detect the language of input text"""
+        if not self.client:
+            raise RuntimeError("OpenAI API key not set; language detection is unavailable")
+            
+        try:
+            prompt = f"""
+            Detect the language of this text: "{text}"
+            
+            Return JSON with this structure:
+            {{
+                "detected_language": "language_code",
+                "confidence": 0.95,
+                "language_name": "English|German|Chinese|French|Spanish|Italian|etc",
+                "is_german": true|false
+            }}
+            
+            Use ISO 639-1 language codes (en, de, zh, fr, es, it, etc).
+            Set confidence between 0.0 and 1.0 based on certainty.
+            If you cannot detect the language with reasonable confidence, use "unknown".
+            """
+            
+            response = await self.client.chat.completions.create(
+                model=self.translation_model,
+                messages=[
+                    {"role": "system", "content": "You are a precise language detection assistant. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=200
+            )
+            
+            return json.loads(response.choices[0].message.content)
+            
+        except Exception as e:
+            logging.error(f"Language detection error for text '{text}': {str(e)}")
+            raise
+
+    async def translate_to_german(self, text: str, source_language: str = None) -> Dict[str, Any]:
+        """Translate text to German, handling multiple possible translations"""
+        if not self.client:
+            raise RuntimeError("OpenAI API key not set; translation is unavailable")
+            
+        try:
+            source_info = f" from {source_language}" if source_language else ""
+            
+            prompt = f"""
+            Translate the word "{text}"{source_info} to German.
+            
+            IMPORTANT: This is for single WORD translation, not sentences.
+            If the word has multiple meanings, provide ALL relevant German translations.
+            
+            Return JSON with this structure:
+            {{
+                "translations": [
+                    {{
+                        "german_word": "German translation",
+                        "context": "brief context/meaning description", 
+                        "pos": "noun|verb|adjective|etc"
+                    }}
+                ],
+                "is_ambiguous": true|false,
+                "source_language": "detected_language_code"
+            }}
+            
+            Examples:
+            - "bank" → [{{"german_word": "Bank", "context": "financial institution", "pos": "noun"}}, {{"german_word": "Ufer", "context": "river bank", "pos": "noun"}}]
+            - "hello" → [{{"german_word": "hallo", "context": "greeting", "pos": "interjection"}}]
+            
+            If no German translation exists, return empty translations array.
+            Set is_ambiguous to true if there are multiple valid translations.
+            """
+            
+            response = await self.client.chat.completions.create(
+                model=self.translation_model,
+                messages=[
+                    {"role": "system", "content": "You are a precise translation assistant specializing in German. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                max_tokens=400
+            )
+            
+            result = json.loads(response.choices[0].message.content)
+            
+            # Validate translations structure
+            if "translations" not in result or not isinstance(result["translations"], list):
+                result["translations"] = []
+            
+            # Ensure each translation has required fields
+            valid_translations = []
+            for trans in result["translations"]:
+                if isinstance(trans, dict) and "german_word" in trans:
+                    valid_translations.append({
+                        "german_word": trans.get("german_word", ""),
+                        "context": trans.get("context", ""),
+                        "pos": trans.get("pos", "")
+                    })
+            
+            result["translations"] = valid_translations
+            result["is_ambiguous"] = len(valid_translations) > 1
+            
+            return result
+            
+        except Exception as e:
+            logging.error(f"Translation error for text '{text}': {str(e)}")
+            raise
+
     async def chat_completion(self, messages: list, max_tokens: int = 800, temperature: float = 0.7) -> Dict[str, Any]:
         """General chat completion method for conversational AI"""
         if not self.client:

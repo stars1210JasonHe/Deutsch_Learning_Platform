@@ -87,3 +87,31 @@ class WordSearchResponse(BaseModel):
     results: List[WordLemma]
     total: int
     cached: bool = False
+
+
+class TranslationOption(BaseModel):
+    german_word: str
+    context: str
+    pos: str
+
+
+class TranslateSearchRequest(BaseModel):
+    text: str
+    translate_mode: bool = True
+
+
+class TranslateSearchResponse(BaseModel):
+    original_text: str
+    detected_language: str
+    detected_language_name: str
+    confidence: float
+    german_translations: List[TranslationOption] = []
+    is_ambiguous: bool = False
+    search_results: Optional[Dict[str, Any]] = None  # Changed to flexible dict
+    selected_translation: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class TranslationSelectionRequest(BaseModel):
+    original_text: str
+    selected_german_word: str

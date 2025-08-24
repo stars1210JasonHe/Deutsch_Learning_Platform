@@ -59,6 +59,35 @@
           </button>
         </div>
         
+        <!-- Translate Mode Toggle (only for word mode) -->
+        <div v-if="searchMode === 'word'" class="flex justify-center mb-6">
+          <div class="glass-card bg-purple-500/10 border-purple-500/20 p-4 rounded-lg">
+            <label class="flex items-center space-x-3 cursor-pointer">
+              <input 
+                v-model="translateMode" 
+                type="checkbox" 
+                class="sr-only"
+              >
+              <div 
+                :class="translateMode ? 'bg-purple-600' : 'bg-gray-600'"
+                class="relative inline-block w-12 h-6 transition-colors duration-200 ease-in-out rounded-full"
+              >
+                <div 
+                  :class="translateMode ? 'translate-x-6' : 'translate-x-0'"
+                  class="inline-block w-6 h-6 transition-transform duration-200 ease-in-out transform bg-white rounded-full"
+                ></div>
+              </div>
+              <span class="text-white font-medium">
+                <span class="mr-2">🌐</span>
+                Translate Mode
+              </span>
+              <span class="text-gray-400 text-sm">
+                (Auto-detect language → German)
+              </span>
+            </label>
+          </div>
+        </div>
+        
         <div class="space-y-6">
           <div>
             <label class="block text-sm font-medium text-gray-300 mb-3">
@@ -68,7 +97,7 @@
               <input 
                 v-model="searchQuery"
                 type="text" 
-                :placeholder="searchMode === 'word' ? 'e.g., gehen, Raumschiff, 宇宙' : 'e.g., I want to explore the stars'"
+                :placeholder="getPlaceholderText()"
                 class="input-field flex-1 text-lg"
                 @keyup.enter="search"
               >
@@ -96,8 +125,71 @@
       </div>
     </div>
     
-    <!-- Results -->
-    <div v-if="searchStore.lastWordResult && searchMode === 'word'" class="max-w-5xl mx-auto">
+    <!-- Translation Results -->
+    <div v-if="searchStore.lastTranslateResult && searchMode === 'word' && translateMode" class="max-w-5xl mx-auto">
+      <div class="glass-card p-8">
+        <h3 class="text-2xl font-semibold text-purple-400 mb-6 text-center">
+          🌐 Translation & Analysis Results
+        </h3>
+        
+        <!-- Translation Info -->
+        <div class="mb-6 p-4 glass-card bg-purple-500/10 border-purple-500/20">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center space-x-3">
+              <span class="text-gray-300">Original:</span>
+              <span class="font-medium text-white">{{ searchStore.lastTranslateResult.original_text }}</span>
+            </div>
+            <div class="flex items-center space-x-2 text-sm">
+              <span class="text-gray-400">{{ searchStore.lastTranslateResult.detected_language_name }}</span>
+              <span class="text-green-400">{{ Math.round(searchStore.lastTranslateResult.confidence * 100) }}%</span>
+            </div>
+          </div>
+          
+          <!-- Multiple Translation Options -->
+          <div v-if="searchStore.lastTranslateResult.is_ambiguous && !searchStore.lastTranslateResult.selected_translation">
+            <div class="text-yellow-400 mb-3">Multiple translations found:</div>
+            <div class="grid gap-2">
+              <button 
+                v-for="option in searchStore.lastTranslateResult.german_translations" 
+                :key="option.german_word"
+                @click="selectTranslation(option.german_word)"
+                class="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
+              >
+                <div class="font-medium text-white">{{ option.german_word }}</div>
+                <div class="text-sm text-gray-400">{{ option.context }} ({{ option.pos }})</div>
+              </button>
+            </div>
+          </div>
+          
+          <!-- Selected Translation -->
+          <div v-else-if="searchStore.lastTranslateResult.selected_translation" class="flex items-center space-x-3">
+            <span class="text-gray-300">German:</span>
+            <span class="font-medium text-purple-400 text-lg">{{ searchStore.lastTranslateResult.selected_translation }}</span>
+          </div>
+        </div>
+        
+        <!-- Word Results (if translation selected and found) -->
+        <div v-if="searchStore.lastTranslateResult.search_results && searchStore.lastTranslateResult.search_results.results.length > 0">
+          <WordResult :result="searchStore.lastTranslateResult.search_results.results[0]" />
+        </div>
+        
+        <!-- No results found -->
+        <div v-else-if="searchStore.lastTranslateResult.selected_translation && searchStore.lastTranslateResult.search_results" 
+             class="text-center py-8 text-gray-400">
+          <div class="text-4xl mb-4">🤷‍♂️</div>
+          <div>No German word found for "{{ searchStore.lastTranslateResult.selected_translation }}" in our database</div>
+        </div>
+        
+        <!-- Error Message -->
+        <div v-if="searchStore.lastTranslateResult.error_message" 
+             class="glass-card bg-red-500/10 border-red-500/20 p-4 text-red-400 text-center">
+          {{ searchStore.lastTranslateResult.error_message }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Regular Word Results -->
+    <div v-if="searchStore.lastWordResult && searchMode === 'word' && !translateMode" class="max-w-5xl mx-auto">
       <div class="glass-card p-8">
         <!-- Multiple Choice Selector -->
         <div v-if="searchStore.lastWordResult.multiple_choices" class="mb-6">
@@ -202,6 +294,17 @@ const authStore = useAuthStore()
 const searchMode = ref<'word' | 'sentence'>('word')
 const searchQuery = ref('')
 const error = ref('')
+const translateMode = ref(false)
+
+const getPlaceholderText = () => {
+  if (searchMode.value === 'sentence') {
+    return 'e.g., I want to explore the stars'
+  } else if (translateMode.value) {
+    return 'e.g., hello, cat, beautiful, 你好, 猫, 美丽'
+  } else {
+    return 'e.g., gehen, Raumschiff, schön'
+  }
+}
 
 const search = async () => {
   if (!searchQuery.value.trim()) return
@@ -215,10 +318,24 @@ const search = async () => {
   
   try {
     if (searchMode.value === 'word') {
-      await searchStore.analyzeWord(searchQuery.value.trim())
+      if (translateMode.value) {
+        await searchStore.translateSearch(searchQuery.value.trim())
+      } else {
+        await searchStore.analyzeWord(searchQuery.value.trim())
+      }
     } else {
       await searchStore.translateSentence(searchQuery.value.trim())
     }
+  } catch (err: any) {
+    error.value = err.message
+  }
+}
+
+const selectTranslation = async (germanWord: string) => {
+  error.value = ''
+  
+  try {
+    await searchStore.selectTranslation(searchQuery.value.trim(), germanWord)
   } catch (err: any) {
     error.value = err.message
   }

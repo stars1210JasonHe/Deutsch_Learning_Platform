@@ -54,6 +54,28 @@ interface SentenceTranslation {
   cached: boolean
 }
 
+interface TranslationOption {
+  german_word: string
+  context: string
+  pos: string
+}
+
+interface TranslateSearchResult {
+  original_text: string
+  detected_language: string
+  detected_language_name: string
+  confidence: number
+  german_translations: TranslationOption[]
+  is_ambiguous: boolean
+  search_results?: {
+    results: any[]
+    total: number
+    cached: boolean
+  }
+  selected_translation?: string
+  error_message?: string
+}
+
 interface SearchHistoryItem {
   id: number
   query_text: string
@@ -65,6 +87,7 @@ export const useSearchStore = defineStore('search', () => {
   const isLoading = ref(false)
   const lastWordResult = ref<WordAnalysis | null>(null)
   const lastSentenceResult = ref<SentenceTranslation | null>(null)
+  const lastTranslateResult = ref<TranslateSearchResult | null>(null)
   const searchHistory = ref<SearchHistoryItem[]>([])
   
   const analyzeWord = async (word: string) => {
@@ -147,16 +170,53 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
   
+  const translateSearch = async (text: string) => {
+    isLoading.value = true
+    try {
+      const response = await axios.post('/api/words/translate-search', { 
+        text: text,
+        translate_mode: true
+      })
+      lastTranslateResult.value = response.data
+      return response.data
+    } catch (error: any) {
+      console.error('Translate search failed:', error)
+      throw new Error(error.response?.data?.detail || 'Translate search failed')
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
+  const selectTranslation = async (originalText: string, selectedGermanWord: string) => {
+    isLoading.value = true
+    try {
+      const response = await axios.post('/api/words/translate-search-select', {
+        original_text: originalText,
+        selected_german_word: selectedGermanWord
+      })
+      lastTranslateResult.value = response.data
+      return response.data
+    } catch (error: any) {
+      console.error('Translation selection failed:', error)
+      throw new Error(error.response?.data?.detail || 'Translation selection failed')
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
   return {
     isLoading,
     lastWordResult,
     lastSentenceResult,
+    lastTranslateResult,
     searchHistory,
     analyzeWord,
     translateSentence,
     getSearchHistory,
     deleteHistoryItem,
     selectSuggestedWord,
-    selectWordChoice
+    selectWordChoice,
+    translateSearch,
+    selectTranslation
   }
 })
