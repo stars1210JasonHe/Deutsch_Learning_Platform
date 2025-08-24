@@ -86,3 +86,6 @@ frontend/tsconfig.tsbuildinfo
 
 # Archive (development files)
 archive/
+
+# Others
+/MD/CLAUDE.md
