@@ -100,14 +100,25 @@ class TranslateSearchRequest(BaseModel):
     translate_mode: bool = True
 
 
+class LanguageChoice(BaseModel):
+    language_code: str
+    language_name: str
+    meaning: str
+    action: str  # "search_german" or "translate_from"
+
+
 class TranslateSearchResponse(BaseModel):
     original_text: str
     detected_language: str
     detected_language_name: str
     confidence: float
+    # Language ambiguity fields
+    is_language_ambiguous: bool = False
+    language_choices: List[LanguageChoice] = []
+    # Translation fields
     german_translations: List[TranslationOption] = []
-    is_ambiguous: bool = False
-    search_results: Optional[Dict[str, Any]] = None  # Changed to flexible dict
+    is_translation_ambiguous: bool = False
+    search_results: Optional[Dict[str, Any]] = None
     selected_translation: Optional[str] = None
     error_message: Optional[str] = None
 
@@ -115,3 +126,9 @@ class TranslateSearchResponse(BaseModel):
 class TranslationSelectionRequest(BaseModel):
     original_text: str
     selected_german_word: str
+
+
+class LanguageSelectionRequest(BaseModel):
+    original_text: str
+    selected_language: str
+    selected_action: str  # "search_german" or "translate_from"

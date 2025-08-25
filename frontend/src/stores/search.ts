@@ -204,6 +204,24 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
   
+  const selectLanguageChoice = async (originalText: string, languageCode: string, action: string) => {
+    isLoading.value = true
+    try {
+      const response = await axios.post('/api/words/translate-language-select', {
+        original_text: originalText,
+        selected_language: languageCode,
+        selected_action: action
+      })
+      lastTranslateResult.value = response.data
+      return response.data
+    } catch (error: any) {
+      console.error('Language choice selection failed:', error)
+      throw new Error(error.response?.data?.detail || 'Language choice selection failed')
+    } finally {
+      isLoading.value = false
+    }
+  }
+  
   return {
     isLoading,
     lastWordResult,
@@ -217,6 +235,7 @@ export const useSearchStore = defineStore('search', () => {
     selectSuggestedWord,
     selectWordChoice,
     translateSearch,
-    selectTranslation
+    selectTranslation,
+    selectLanguageChoice
   }
 })

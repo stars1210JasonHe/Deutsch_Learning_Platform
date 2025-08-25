@@ -42,6 +42,85 @@
           <p class="text-sm text-gray-400 mt-2">
             I can help explain grammar, usage, synonyms, examples, and more.
           </p>
+          
+          <!-- Quick Tips -->
+          <div class="mt-6">
+            <p class="text-sm text-gray-600 mb-3">Quick tips to get started:</p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-w-4xl mx-auto">
+              <button
+                @click="sendQuickTip('Explain ' + word + ' in simple terms')"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-sm transition-colors"
+              >
+                <span>📖</span>
+                <span>Simple Explanation</span>
+              </button>
+              <button
+                @click="sendQuickTip('Give 3 example sentences for ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg text-sm transition-colors"
+              >
+                <span>📝</span>
+                <span>3 Examples</span>
+              </button>
+              <button
+                @click="sendQuickTip('Show synonyms and antonyms of ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg text-sm transition-colors"
+              >
+                <span>🔍</span>
+                <span>Synonyms & Antonyms</span>
+              </button>
+              <button
+                @click="sendQuickTip('Create a mnemonic for remembering ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 rounded-lg text-sm transition-colors"
+              >
+                <span>🧠</span>
+                <span>Memory Aid</span>
+              </button>
+              <button
+                v-if="isVerb"
+                @click="sendQuickTip('Show conjugations for ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-sm transition-colors"
+              >
+                <span>🔄</span>
+                <span>Conjugations</span>
+              </button>
+              <button
+                v-if="isVerbOrPreposition"
+                @click="sendQuickTip('What case does ' + word + ' take?')"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-lg text-sm transition-colors"
+              >
+                <span>📐</span>
+                <span>Grammar Cases</span>
+              </button>
+              <button
+                @click="sendQuickTip('Show pronunciation guide and IPA for ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-pink-50 hover:bg-pink-100 text-pink-700 rounded-lg text-sm transition-colors"
+              >
+                <span>🗣️</span>
+                <span>Pronunciation</span>
+              </button>
+              <button
+                @click="sendQuickTip('Write a short dialogue using ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-sm transition-colors"
+              >
+                <span>💬</span>
+                <span>Dialogue</span>
+              </button>
+              <button
+                @click="sendQuickTip('Make a 5-item quiz for ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-sm transition-colors"
+              >
+                <span>🎯</span>
+                <span>Quiz Me</span>
+              </button>
+              <button
+                @click="sendQuickTip('Show common phrases and collocations with ' + word)"
+                class="flex items-center justify-center space-x-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm transition-colors"
+              >
+                <span>🔗</span>
+                <span>Common Phrases</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Chat Messages -->
@@ -57,7 +136,35 @@
               ? 'bg-blue-500 text-white' 
               : 'bg-gray-100 text-gray-900'"
           >
-            <div class="whitespace-pre-wrap">{{ message.content }}</div>
+            <!-- Structured Response -->
+            <div v-if="message.role === 'assistant' && message.structured" class="space-y-3">
+              <div v-if="message.structured.answer" class="whitespace-pre-wrap">{{ message.structured.answer }}</div>
+              
+              <div v-if="message.structured.examples && message.structured.examples.length" class="space-y-1">
+                <div class="font-medium text-sm text-gray-600">Examples:</div>
+                <div v-for="(example, idx) in message.structured.examples" :key="idx" 
+                     class="pl-3 border-l-2 border-gray-300 text-sm italic">
+                  {{ example }}
+                </div>
+              </div>
+              
+              <div v-if="message.structured.mini_practice" class="bg-blue-50 p-2 rounded text-sm">
+                <div class="font-medium text-blue-700 mb-1">Practice:</div>
+                <div class="whitespace-pre-wrap">{{ message.structured.mini_practice }}</div>
+              </div>
+              
+              <div v-if="message.structured.tips && message.structured.tips.length" class="space-y-1">
+                <div class="font-medium text-sm text-gray-600">Tips:</div>
+                <div v-for="(tip, idx) in message.structured.tips" :key="idx" class="text-sm flex items-start space-x-1">
+                  <span class="text-yellow-500">💡</span>
+                  <span>{{ tip }}</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Regular Response -->
+            <div v-else class="whitespace-pre-wrap">{{ message.content }}</div>
+            
             <div class="text-xs opacity-70 mt-1">
               {{ formatTime(message.timestamp) }}
             </div>
@@ -112,6 +219,12 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  structured?: {
+    answer?: string
+    examples?: string[]
+    mini_practice?: string
+    tips?: string[]
+  }
 }
 
 const props = defineProps<{
@@ -140,7 +253,25 @@ const messagesCount = computed(() => {
   return Math.ceil(messages.value.filter(m => m.role === 'user').length)
 })
 
+const isVerb = computed(() => {
+  return props.wordData?.pos === 'verb' || props.wordData?.pos === 'v'
+})
+
+const isVerbOrPreposition = computed(() => {
+  const pos = props.wordData?.pos?.toLowerCase()
+  return pos === 'verb' || pos === 'v' || pos === 'preposition' || pos === 'prep'
+})
+
 // Methods
+const sendQuickTip = async (tipMessage: string) => {
+  if (isLoading.value || messagesCount.value >= maxRounds.value) {
+    return
+  }
+
+  newMessage.value = tipMessage
+  await sendMessage()
+}
+
 const sendMessage = async () => {
   if (!newMessage.value.trim() || isLoading.value || messagesCount.value >= maxRounds.value) {
     return
@@ -171,7 +302,8 @@ const sendMessage = async () => {
     const assistantMessage: ChatMessage = {
       role: 'assistant',
       content: response.data.response,
-      timestamp: new Date()
+      timestamp: new Date(),
+      structured: response.data.structured
     }
 
     messages.value.push(assistantMessage)

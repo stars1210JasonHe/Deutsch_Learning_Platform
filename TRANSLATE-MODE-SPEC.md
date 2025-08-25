@@ -42,9 +42,10 @@ class TranslationOption(BaseModel):
 ```
 
 #### 3. OpenAI Service Integration (`app/services/openai_service.py`)
-- Add `detect_language(text)` function
+- Enhance `detect_language(text)` function with ambiguity detection
 - Add `translate_to_german(text, source_language)` function
 - Use existing OpenAI client and models
+- AI determines when word is ambiguous and suggests alternative language
 
 ### Frontend Changes
 
@@ -64,10 +65,24 @@ class TranslationOption(BaseModel):
 
 ## Implementation Details
 
-### Language Detection Strategy
-- Use OpenAI to identify source language
+### Enhanced Language Detection Strategy
+- Use OpenAI to identify source language with ambiguity detection
+- When word might be German, check for alternative language possibilities
 - Handle common languages: English, Chinese, French, Spanish, Italian, etc.
+- AI determines when word is ambiguous enough to show user choice
 - Fallback to "unknown" if detection fails
+
+#### Ambiguous Word Handling
+For words that could be multiple languages (e.g., "hell" = German "bright" OR English "underworld"):
+1. **AI detects potential ambiguity** - when confidence suggests word could be German AND another language
+2. **Present user choice**:
+   ```
+   This word could be:
+   [ ] German word "hell" (bright, light) → search German database
+   [ ] English word "hell" → translate to German first
+   ```
+3. **User selects approach** - direct German search OR translation workflow
+4. **Reduces server load** - only shown when AI determines uncertainty exists
 
 ### Translation Strategy  
 - Only translate single words (not phrases/sentences)
@@ -82,9 +97,11 @@ class TranslationOption(BaseModel):
 
 ### Error Handling
 
-#### 1. Language Detection Failures
+#### 1. Language Detection Results
 - **Cannot detect language**: Show error message "Unable to detect language. Please try a different word or switch to normal search mode."
-- **Detected language is German**: Skip translation, go directly to German word search
+- **Clearly German word**: Skip translation, go directly to German word search
+- **Ambiguous word (German + other)**: Present user with choice dialog
+- **Clearly non-German**: Proceed with translation workflow
 
 #### 2. Translation Results
 - **No corresponding German word**: Show message "No German translation found for this word. Please try a synonym or check spelling."
@@ -108,17 +125,30 @@ class TranslationOption(BaseModel):
 - Display translation process (original → German → results)
 - Maintain existing search functionality when translate mode OFF
 
-## Example User Interaction
+## Example User Interactions
 
+### Simple Case (Clearly Non-German)
 ```
 User Input: "hello" (with translate mode ON)
-System Detects: English
+System Detects: English (high confidence)
 System Translates: "hallo"  
 System Searches: German word "hallo"
 Results Display:
   Original: hello (English)
   German: hallo
   [Full German word details for "hallo"]
+```
+
+### Ambiguous Case (Could be German or Other Language)
+```
+User Input: "hell" (with translate mode ON)
+System Detects: Ambiguous (could be German or English)
+System Shows Choice:
+  [ ] Search German word "hell" (bright, light)
+  [ ] Translate English "hell" to German (Hölle)
+User Selects: German option
+Results Display:
+  [German word details for "hell" meaning "bright"]
 ```
 
 ## Files to Modify

@@ -161,10 +161,52 @@
             </div>
           </div>
           
+          <!-- Single Translation (Non-ambiguous) -->
+          <div v-else-if="searchStore.lastTranslateResult.german_translations && searchStore.lastTranslateResult.german_translations.length > 0 && !searchStore.lastTranslateResult.selected_translation">
+            <div class="text-green-400 mb-3">German translation:</div>
+            <div class="grid gap-2">
+              <button 
+                v-for="option in searchStore.lastTranslateResult.german_translations" 
+                :key="option.german_word"
+                @click="selectTranslation(option.german_word)"
+                class="p-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
+              >
+                <div class="font-medium text-white">{{ option.german_word }}</div>
+                <div class="text-sm text-gray-400">{{ option.context }} ({{ option.pos }})</div>
+              </button>
+            </div>
+          </div>
+          
           <!-- Selected Translation -->
           <div v-else-if="searchStore.lastTranslateResult.selected_translation" class="flex items-center space-x-3">
             <span class="text-gray-300">German:</span>
             <span class="font-medium text-purple-400 text-lg">{{ searchStore.lastTranslateResult.selected_translation }}</span>
+          </div>
+        </div>
+        
+        <!-- Language Choice Dialog (for ambiguous words) -->
+        <div v-if="searchStore.lastTranslateResult.is_language_ambiguous && searchStore.lastTranslateResult.language_choices.length > 0" 
+             class="mb-6 p-4 glass-card bg-amber-500/10 border-amber-500/20">
+          <div class="text-amber-400 mb-4 text-center font-medium">
+            🤔 This word could have different meanings. Please choose:
+          </div>
+          <div class="grid gap-3">
+            <button 
+              v-for="choice in searchStore.lastTranslateResult.language_choices" 
+              :key="choice.language_code + choice.action"
+              @click="selectLanguageChoice(choice.language_code, choice.action)"
+              class="p-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors border border-gray-600 hover:border-amber-400"
+            >
+              <div class="flex items-center justify-between mb-2">
+                <div class="font-medium text-white">
+                  {{ choice.language_name }} word "{{ searchStore.lastTranslateResult.original_text }}"
+                </div>
+                <div class="text-xs text-gray-400 uppercase tracking-wide">
+                  {{ choice.action === 'search_german' ? 'Search Database' : 'Translate First' }}
+                </div>
+              </div>
+              <div class="text-sm text-gray-300">{{ choice.meaning }}</div>
+            </button>
           </div>
         </div>
         
@@ -336,6 +378,16 @@ const selectTranslation = async (germanWord: string) => {
   
   try {
     await searchStore.selectTranslation(searchQuery.value.trim(), germanWord)
+  } catch (err: any) {
+    error.value = err.message
+  }
+}
+
+const selectLanguageChoice = async (languageCode: string, action: string) => {
+  error.value = ''
+  
+  try {
+    await searchStore.selectLanguageChoice(searchQuery.value.trim(), languageCode, action)
   } catch (err: any) {
     error.value = err.message
   }

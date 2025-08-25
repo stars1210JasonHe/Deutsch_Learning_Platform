@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.deps import get_db, get_current_active_user
 from app.models.user import User
-from app.schemas.word import WordSearchResponse, TranslateSearchRequest, TranslateSearchResponse, TranslationSelectionRequest, TranslationOption
+from app.schemas.word import WordSearchResponse, TranslateSearchRequest, TranslateSearchResponse, TranslationSelectionRequest, TranslationOption, LanguageChoice, LanguageSelectionRequest
 from app.services.vocabulary_service import VocabularyService
 from app.services.openai_service import OpenAIService
 
@@ -59,13 +59,18 @@ async def translate_search(
     """Translate word to German and search vocabulary database"""
     
     try:
-        # Step 1: Detect language
+        # Step 1: Enhanced language detection with ambiguity check
         language_result = await openai_service.detect_language(request.text)
         
         detected_lang = language_result.get("detected_language", "unknown")
         detected_name = language_result.get("language_name", "Unknown")
         confidence = language_result.get("confidence", 0.0)
         is_german = language_result.get("is_german", False)
+        is_ambiguous = language_result.get("is_ambiguous", False)
+        alternative_lang = language_result.get("alternative_language")
+        alternative_name = language_result.get("alternative_language_name")
+        german_meaning = language_result.get("german_meaning")
+        alternative_meaning = language_result.get("alternative_meaning")
         
         # Check if language detection failed
         if detected_lang == "unknown" or confidence < 0.5:
@@ -77,7 +82,36 @@ async def translate_search(
                 error_message="Unable to detect language. Please try a different word or switch to normal search mode."
             )
         
-        # Step 2: Handle German input (skip translation)
+        # Step 2: Handle ambiguous words - show user choice
+        if is_ambiguous and alternative_lang and german_meaning and alternative_meaning:
+            language_choices = []
+            
+            # Add German option
+            language_choices.append(LanguageChoice(
+                language_code="de",
+                language_name="German", 
+                meaning=german_meaning,
+                action="search_german"
+            ))
+            
+            # Add alternative language option
+            language_choices.append(LanguageChoice(
+                language_code=alternative_lang,
+                language_name=alternative_name or "Unknown",
+                meaning=alternative_meaning,
+                action="translate_from"
+            ))
+            
+            return TranslateSearchResponse(
+                original_text=request.text,
+                detected_language=detected_lang,
+                detected_language_name=detected_name,
+                confidence=confidence,
+                is_language_ambiguous=True,
+                language_choices=language_choices
+            )
+        
+        # Step 3: Handle clear German input (skip translation)
         if is_german or detected_lang == "de":
             search_result = await vocabulary_service.search_words(
                 db=db,
@@ -219,4 +253,120 @@ async def translate_search_select(
             detected_language_name="Error",
             confidence=0.0,
             error_message=f"Search failed: {str(e)}"
+        )
+
+
+@router.post("/translate-language-select", response_model=TranslateSearchResponse)
+async def translate_language_select(
+    request: LanguageSelectionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Handle user's language choice for ambiguous words"""
+    
+    try:
+        if request.selected_action == "search_german":
+            # User chose German - search directly in database
+            search_results = await vocabulary_service.get_or_create_word(
+                db=db,
+                lemma=request.original_text,
+                user=current_user
+            )
+            
+            # Format as search results
+            if search_results and search_results.get('found', False):
+                search_results = {
+                    "results": [search_results],
+                    "total": 1,
+                    "cached": search_results.get('cached', False)
+                }
+            else:
+                # Fall back to fuzzy search if no exact match
+                search_results = await vocabulary_service.search_words(
+                    db=db,
+                    query=request.original_text,
+                    user=current_user,
+                    skip=0,
+                    limit=10
+                )
+            
+            return TranslateSearchResponse(
+                original_text=request.original_text,
+                detected_language="de",
+                detected_language_name="German",
+                confidence=1.0,
+                search_results=search_results,
+                selected_translation=request.original_text
+            )
+            
+        elif request.selected_action == "translate_from":
+            # User chose to translate from alternative language
+            translation_result = await openai_service.translate_to_german(
+                request.original_text, request.selected_language
+            )
+            
+            translations = translation_result.get("translations", [])
+            
+            if not translations:
+                return TranslateSearchResponse(
+                    original_text=request.original_text,
+                    detected_language=request.selected_language,
+                    detected_language_name=request.selected_language,
+                    confidence=1.0,
+                    error_message="No German translation found for this word."
+                )
+            
+            # Convert to TranslationOption objects
+            german_options = [
+                TranslationOption(
+                    german_word=trans["german_word"],
+                    context=trans.get("context", ""),
+                    pos=trans.get("pos", "")
+                )
+                for trans in translations
+            ]
+            
+            is_translation_ambiguous = len(german_options) > 1
+            
+            # If not ambiguous, search immediately
+            search_results = None
+            selected_translation = None
+            
+            if not is_translation_ambiguous:
+                selected_translation = german_options[0].german_word
+                search_results = await vocabulary_service.search_words(
+                    db=db,
+                    query=selected_translation,
+                    user=current_user,
+                    skip=0,
+                    limit=10
+                )
+            
+            return TranslateSearchResponse(
+                original_text=request.original_text,
+                detected_language=request.selected_language,
+                detected_language_name=request.selected_language,
+                confidence=1.0,
+                german_translations=german_options,
+                is_translation_ambiguous=is_translation_ambiguous,
+                search_results=search_results,
+                selected_translation=selected_translation
+            )
+            
+        else:
+            return TranslateSearchResponse(
+                original_text=request.original_text,
+                detected_language="error",
+                detected_language_name="Error",
+                confidence=0.0,
+                error_message="Invalid action selected"
+            )
+            
+    except Exception as e:
+        return TranslateSearchResponse(
+            original_text=request.original_text,
+            detected_language="error",
+            detected_language_name="Error",
+            confidence=0.0,
+            error_message=f"Language selection failed: {str(e)}"
         )

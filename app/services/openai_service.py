@@ -273,19 +273,35 @@ class OpenAIService:
             
         try:
             prompt = f"""
-            Detect the language of this text: "{text}"
+            Analyze this word: "{text}"
             
-            Return JSON with this structure:
+            Determine if this word could exist in multiple languages, especially German and another language.
+            
+            Return JSON with this structure (use JSON null, not string "null"):
             {{
-                "detected_language": "language_code",
+                "detected_language": "most_likely_language_code",
                 "confidence": 0.95,
                 "language_name": "English|German|Chinese|French|Spanish|Italian|etc",
-                "is_german": true|false
+                "is_german": true|false,
+                "is_ambiguous": true|false,
+                "alternative_language": "language_code",
+                "alternative_language_name": "Language Name", 
+                "german_meaning": "brief meaning if German",
+                "alternative_meaning": "brief meaning in alternative language"
             }}
             
-            Use ISO 639-1 language codes (en, de, zh, fr, es, it, etc).
-            Set confidence between 0.0 and 1.0 based on certainty.
-            If you cannot detect the language with reasonable confidence, use "unknown".
+            IMPORTANT: When a field should be empty, use JSON null (not string "null"). Example:
+            - Good: "alternative_language": null
+            - Bad: "alternative_language": "null"
+            
+            Rules:
+            - Set is_ambiguous=true ONLY when word could realistically be German AND another language
+            - For ambiguous words, always check if one could be German
+            - Examples of ambiguous: "hell" (German=bright, English=underworld), "bank" (German=bench, English=financial)  
+            - Examples of NOT ambiguous: "hello" (clearly English), "schön" (clearly German)
+            - Use ISO 639-1 codes (en, de, zh, fr, es, it, etc)
+            - Prioritize common languages for alternatives (English, Chinese, French, Spanish)
+            - Only suggest ONE alternative language (the most likely)
             """
             
             response = await self.client.chat.completions.create(
