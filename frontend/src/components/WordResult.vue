@@ -58,10 +58,6 @@
       </div>
     
       <div class="space-y-6">
-      <!-- Debug info (uncomment for debugging) -->
-      <!-- <div class="text-xs text-gray-500 bg-gray-100 p-2 rounded">
-        Debug: {{ JSON.stringify(result, null, 2) }}
-      </div> -->
       
       <!-- Word Title with Article (for nouns) -->
       <div class="mb-4">
@@ -76,6 +72,82 @@
         <div v-if="result.plural && (result.pos === 'noun' || result.upos === 'NOUN')" class="mt-2">
           <span class="text-sm text-gray-600">Plural: </span>
           <span class="text-sm font-medium text-gray-800">{{ result.plural }}</span>
+        </div>
+        
+        <!-- Comparative and Superlative for adjectives -->
+        <div v-if="result.degree_forms && result.pos === 'adj'" class="mt-2 space-y-1">
+          <div v-if="result.degree_forms.comparative">
+            <span class="text-sm text-gray-600">Comparative: </span>
+            <span class="text-sm font-medium text-gray-800">{{ result.degree_forms.comparative }}</span>
+          </div>
+          <div v-if="result.degree_forms.superlative">
+            <span class="text-sm text-gray-600">Superlative: </span>
+            <span class="text-sm font-medium text-gray-800">{{ result.degree_forms.superlative }}</span>
+          </div>
+        </div>
+        
+        <!-- Case governance for prepositions -->
+        <div v-if="result.governance && (result.pos === 'prep' || result.pos === 'preposition' || result.upos === 'ADP')" class="mt-2">
+          <span class="text-sm text-gray-600">Governs: </span>
+          <span class="text-sm font-medium text-gray-800">{{ result.governance }}</span>
+        </div>
+        
+        <!-- Type classification for adverbs -->
+        <div v-if="result.adv_type && result.pos === 'adv'" class="mt-2">
+          <span class="text-sm text-gray-600">Type: </span>
+          <span class="text-sm font-medium text-gray-800">{{ result.adv_type }}</span>
+        </div>
+        
+        <!-- Conjunction type -->
+        <div v-if="result.conj_type && result.pos === 'conj'" class="mt-2">
+          <span class="text-sm text-gray-600">Type: </span>
+          <span class="text-sm font-medium text-gray-800">{{ result.conj_type }}</span>
+        </div>
+        
+        <!-- Pronoun information -->
+        <div v-if="result.pron_info && result.pos === 'pron'" class="mt-2">
+          <div v-if="result.pron_info.type">
+            <span class="text-sm text-gray-600">Type: </span>
+            <span class="text-sm font-medium text-gray-800">{{ result.pron_info.type }}</span>
+          </div>
+          <div v-if="result.pron_info.cases" class="mt-1">
+            <span class="text-sm text-gray-600">Cases: </span>
+            <span class="text-sm font-medium text-gray-800">
+              <span v-for="(form, case_name) in result.pron_info.cases" :key="case_name" class="mr-2">
+                {{ case_name }}: {{ form }}
+              </span>
+            </span>
+          </div>
+        </div>
+        
+        <!-- Determiner type -->
+        <div v-if="result.det_type && result.pos === 'det'" class="mt-2">
+          <span class="text-sm text-gray-600">Type: </span>
+          <span class="text-sm font-medium text-gray-800">{{ result.det_type }}</span>
+        </div>
+        
+        <!-- Numeral information -->
+        <div v-if="result.num_info && (result.pos === 'num' || result.pos === 'numeral')" class="mt-2">
+          <div v-if="result.num_info.type">
+            <span class="text-sm text-gray-600">Type: </span>
+            <span class="text-sm font-medium text-gray-800">{{ result.num_info.type }}</span>
+          </div>
+          <div v-if="result.num_info.value" class="mt-1">
+            <span class="text-sm text-gray-600">Value: </span>
+            <span class="text-sm font-medium text-gray-800">{{ result.num_info.value }}</span>
+          </div>
+        </div>
+        
+        <!-- Particle type -->
+        <div v-if="result.particle_type && result.pos === 'particle'" class="mt-2">
+          <span class="text-sm text-gray-600">Type: </span>
+          <span class="text-sm font-medium text-gray-800">{{ result.particle_type }}</span>
+        </div>
+        
+        <!-- Interjection register -->
+        <div v-if="result.interj_register && result.pos === 'interj'" class="mt-2">
+          <span class="text-sm text-gray-600">Register: </span>
+          <span class="text-sm font-medium text-gray-800">{{ result.interj_register }}</span>
         </div>
       </div>
       
@@ -106,6 +178,59 @@
           </span>
           <span v-if="result.verb_props?.regularity" class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
             {{ result.verb_props.regularity }}
+          </span>
+          
+          <!-- Adjective badges -->
+          <span v-if="result.degree_forms?.comparative" class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm">
+            comparative
+          </span>
+          <span v-if="result.degree_forms?.superlative" class="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm">
+            superlative
+          </span>
+          
+          <!-- Preposition badge -->
+          <span v-if="result.governance && (result.pos === 'prep' || result.pos === 'preposition' || result.upos === 'ADP')" class="bg-cyan-100 text-cyan-800 px-3 py-1 rounded-full text-sm">
+            + {{ result.governance }}
+          </span>
+          
+          <!-- Adverb type badge -->
+          <span v-if="result.adv_type" class="bg-lime-100 text-lime-800 px-3 py-1 rounded-full text-sm">
+            {{ result.adv_type }}
+          </span>
+          
+          <!-- Conjunction type badge -->
+          <span v-if="result.conj_type" class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
+            {{ result.conj_type }}
+          </span>
+          
+          <!-- Pronoun type badge -->
+          <span v-if="result.pron_info?.type" class="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm">
+            {{ result.pron_info.type }}
+          </span>
+          
+          <!-- Determiner type badge -->
+          <span v-if="result.det_type" class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm">
+            {{ result.det_type }}
+          </span>
+          
+          <!-- Numeral type badge -->
+          <span v-if="result.num_info?.type" class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm">
+            {{ result.num_info.type }}
+          </span>
+          
+          <!-- Numeral value badge -->
+          <span v-if="result.num_info?.value" class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm">
+            = {{ result.num_info.value }}
+          </span>
+          
+          <!-- Particle type badge -->
+          <span v-if="result.particle_type" class="bg-teal-100 text-teal-800 px-3 py-1 rounded-full text-sm">
+            {{ result.particle_type }}
+          </span>
+          
+          <!-- Interjection register badge -->
+          <span v-if="result.interj_register" class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm">
+            {{ result.interj_register }}
           </span>
         </div>
 
@@ -194,6 +319,122 @@
                   {{ prep }}
                 </span>
               </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Adjective Properties -->
+        <div v-if="result.degree_forms && result.pos === 'adj'" class="bg-yellow-50 rounded-lg p-4">
+          <h4 class="font-medium text-yellow-900 mb-2">📐 Adjective Forms</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div v-if="result.degree_forms.comparative">
+              <span class="text-yellow-600 font-medium">Comparative:</span>
+              <span class="ml-1 font-medium">{{ result.degree_forms.comparative }}</span>
+            </div>
+            <div v-if="result.degree_forms.superlative">
+              <span class="text-yellow-600 font-medium">Superlative:</span>
+              <span class="ml-1 font-medium">{{ result.degree_forms.superlative }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Preposition Properties -->
+        <div v-if="result.governance && (result.pos === 'prep' || result.pos === 'preposition' || result.upos === 'ADP')" class="bg-cyan-50 rounded-lg p-4">
+          <h4 class="font-medium text-cyan-900 mb-2">⚖️ Preposition Properties</h4>
+          <div class="text-sm">
+            <div>
+              <span class="text-cyan-600 font-medium">Case Governance:</span>
+              <span class="ml-1 font-medium">{{ result.governance }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Adverb Properties -->
+        <div v-if="result.adv_type && result.pos === 'adv'" class="bg-lime-50 rounded-lg p-4">
+          <h4 class="font-medium text-lime-900 mb-2">🎯 Adverb Properties</h4>
+          <div class="text-sm">
+            <div>
+              <span class="text-lime-600 font-medium">Type:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.adv_type }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Conjunction Properties -->
+        <div v-if="result.conj_type && result.pos === 'conj'" class="bg-purple-50 rounded-lg p-4">
+          <h4 class="font-medium text-purple-900 mb-2">🔗 Conjunction Properties</h4>
+          <div class="text-sm">
+            <div>
+              <span class="text-purple-600 font-medium">Type:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.conj_type }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Pronoun Properties -->
+        <div v-if="result.pron_info && result.pos === 'pron'" class="bg-pink-50 rounded-lg p-4">
+          <h4 class="font-medium text-pink-900 mb-2">👤 Pronoun Properties</h4>
+          <div class="text-sm space-y-2">
+            <div v-if="result.pron_info.type">
+              <span class="text-pink-600 font-medium">Type:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.pron_info.type }}</span>
+            </div>
+            <div v-if="result.pron_info.cases">
+              <span class="text-pink-600 font-medium">Case Forms:</span>
+              <div class="mt-1 grid grid-cols-2 gap-2">
+                <div v-for="(form, case_name) in result.pron_info.cases" :key="case_name" class="text-sm">
+                  <span class="text-pink-500 font-medium">{{ case_name }}:</span>
+                  <span class="ml-1 font-medium">{{ form }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Determiner Properties -->
+        <div v-if="result.det_type && result.pos === 'det'" class="bg-indigo-50 rounded-lg p-4">
+          <h4 class="font-medium text-indigo-900 mb-2">📍 Determiner Properties</h4>
+          <div class="text-sm">
+            <div>
+              <span class="text-indigo-600 font-medium">Type:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.det_type }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Numeral Properties -->
+        <div v-if="result.num_info && (result.pos === 'num' || result.pos === 'numeral')" class="bg-orange-50 rounded-lg p-4">
+          <h4 class="font-medium text-orange-900 mb-2">🔢 Numeral Properties</h4>
+          <div class="text-sm space-y-1">
+            <div v-if="result.num_info.type">
+              <span class="text-orange-600 font-medium">Type:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.num_info.type }}</span>
+            </div>
+            <div v-if="result.num_info.value">
+              <span class="text-orange-600 font-medium">Numeric Value:</span>
+              <span class="ml-1 font-medium">{{ result.num_info.value }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Particle Properties -->
+        <div v-if="result.particle_type && result.pos === 'particle'" class="bg-teal-50 rounded-lg p-4">
+          <h4 class="font-medium text-teal-900 mb-2">✨ Particle Properties</h4>
+          <div class="text-sm">
+            <div>
+              <span class="text-teal-600 font-medium">Type:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.particle_type }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Interjection Properties -->
+        <div v-if="result.interj_register && result.pos === 'interj'" class="bg-gray-50 rounded-lg p-4">
+          <h4 class="font-medium text-gray-900 mb-2">❗ Interjection Properties</h4>
+          <div class="text-sm">
+            <div>
+              <span class="text-gray-600 font-medium">Register:</span>
+              <span class="ml-1 font-medium capitalize">{{ result.interj_register }}</span>
             </div>
           </div>
         </div>
@@ -531,6 +772,28 @@ interface WordAnalysis {
   // Basic properties
   article?: string
   gender?: string
+  
+  // New grammatical features
+  degree_forms?: {
+    comparative?: string
+    superlative?: string
+  }
+  governance?: string
+  adv_type?: string
+  
+  // Function word features
+  conj_type?: string
+  pron_info?: {
+    type?: string
+    cases?: Record<string, string>
+  }
+  det_type?: string
+  num_info?: {
+    type?: string
+    value?: string
+  }
+  particle_type?: string
+  interj_register?: string
   
   // Meanings
   gloss_en?: string

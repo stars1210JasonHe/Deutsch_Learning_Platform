@@ -330,45 +330,97 @@ class EnhancedSearchService:
         query: str, 
         max_suggestions: int = 5
     ) -> List[Dict[str, Any]]:
-        """Get ranked suggestions with similarity scores"""
+        """Get intelligent AI-powered suggestions instead of ridiculous similarity matching"""
         
-        if len(query) < 3:
+        if len(query) < 2:
             return []
         
-        # Get candidate words
-        candidates = db.query(WordLemma).filter(
-            func.length(WordLemma.lemma) >= max(1, len(query) - 3),
-            func.length(WordLemma.lemma) <= len(query) + 3
-        ).limit(100).all()
-        
-        suggestions = []
-        
-        for candidate in candidates:
-            similarity = self.calculate_similarity(query.lower(), candidate.lemma.lower())
+        try:
+            # Use OpenAI to get intelligent suggestions
+            print(f"Getting AI suggestions for '{query}'...")
             
-            if similarity >= 0.3:  # Lower threshold for suggestions
-                # Get translation preview
-                translations = db.query(Translation).filter(
-                    Translation.lemma_id == candidate.id
-                ).limit(2).all()
+            system_prompt = f"""You are a German language expert. A user searched for "{query}" but it wasn't found in our German vocabulary database.
+
+Provide 3-5 intelligent suggestions for what they might have meant. Consider:
+
+1. Common German words that sound similar
+2. Possible typos of German words  
+3. Inflected forms they might have meant (like "bist" -> suggest "sein")
+4. Related German vocabulary
+
+Return ONLY a JSON array of suggestions:
+[
+  {{"word": "german_word", "reason": "why you suggest this", "pos": "noun/verb/etc"}},
+  {{"word": "another_word", "reason": "explanation", "pos": "pos"}}
+]
+
+Focus on useful, relevant German vocabulary. NO English words. NO made-up words."""
+
+            response = await self.openai_service.client.chat.completions.create(
+                model=self.openai_service.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"User searched: {query}"}
+                ],
+                max_tokens=400,
+                temperature=0.3
+            )
+            
+            ai_response = response.choices[0].message.content.strip()
+            
+            # Parse AI response
+            import json
+            try:
+                ai_suggestions = json.loads(ai_response)
+            except json.JSONDecodeError:
+                print(f"Failed to parse AI suggestions: {ai_response}")
+                return []
+            
+            # Convert AI suggestions to our format and validate against database
+            suggestions = []
+            
+            for ai_suggestion in ai_suggestions[:max_suggestions]:
+                word = ai_suggestion.get('word', '').strip()
+                reason = ai_suggestion.get('reason', '').strip()
+                pos = ai_suggestion.get('pos', 'unknown').strip()
                 
-                translation_preview = []
-                if translations:
-                    translation_preview = [t.text for t in translations[:2]]
+                if not word:
+                    continue
                 
-                suggestions.append({
-                    'word': candidate.lemma,
-                    'similarity': round(similarity, 2),
-                    'pos': candidate.pos,
-                    'translations': translation_preview,
-                    'lemma_id': candidate.id,
-                    'confidence_level': self.get_confidence_level(similarity)
-                })
-        
-        # Sort by similarity (highest first)
-        suggestions.sort(key=lambda x: x['similarity'], reverse=True)
-        
-        return suggestions[:max_suggestions]
+                # Check if the suggested word exists in our database
+                existing_word = db.query(WordLemma).filter(WordLemma.lemma.ilike(word)).first()
+                
+                if existing_word:
+                    # Get translations for existing words
+                    translations = db.query(Translation).filter(
+                        Translation.lemma_id == existing_word.id,
+                        Translation.lang_code == 'en'
+                    ).limit(2).all()
+                    
+                    translation_preview = [t.text for t in translations] if translations else []
+                    
+                    suggestions.append({
+                        'word': existing_word.lemma,
+                        'pos': existing_word.pos or pos,
+                        'meaning': ', '.join(translation_preview) if translation_preview else reason,
+                        'source': 'ai_suggestion'
+                    })
+                else:
+                    # Include AI suggestion even if not in database
+                    suggestions.append({
+                        'word': word,
+                        'pos': pos,
+                        'meaning': reason,
+                        'source': 'ai_suggestion_new'
+                    })
+            
+            print(f"Generated {len(suggestions)} AI-powered suggestions for '{query}'")
+            return suggestions
+            
+        except Exception as e:
+            print(f"AI suggestion error for '{query}': {e}")
+            # Fallback to empty suggestions instead of broken similarity search
+            return []
     
     def get_confidence_level(self, similarity: float) -> str:
         """Convert similarity score to confidence level"""

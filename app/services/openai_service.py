@@ -41,107 +41,163 @@ class OpenAIService:
         self.image_model = settings.openai_image_model or "dall-e-2"  # Default to DALL-E 2 for images
 
     async def analyze_word(self, word: str) -> Dict[str, Any]:
-        """Analyze a single word for POS, conjugations, translations"""
-        if not self.client:
-            # Strict mode: no silent fallback; caller must handle
-            raise RuntimeError("OpenAI API key not set; word analysis is unavailable")
-        
-        try:
-            logging.info(f"Analyzing word '{word}' using {settings.openai_base_url}")
-            
-            prompt = f"""
-        IMPORTANT: Analyze the EXACT word "{word}" as provided. Do not auto-correct or substitute it with similar words.
-
-        First, determine if "{word}" is a valid German word (exact match only):
-        - Check if it's a valid German lemma, inflected form, or compound word
-        - Do NOT consider it valid if it's just similar to a German word
-        - Do NOT auto-correct spelling mistakes
-
-        FOR VERBS: You MUST provide complete conjugation tables with ALL available German tenses:
-        - REQUIRED: praesens, praeteritum, perfekt, plusquamperfekt, imperativ (minimum 5)
-        - OPTIONAL: futur_i, futur_ii, konjunktiv_i, konjunktiv_ii (include if available)
-        - Provide as many tenses as you can for comprehensive language learning
-
-        If "{word}" is EXACTLY a valid German word, return:
-        {{
-            "found": true,
-            "input_word": "{word}",
-            "pos": "noun|verb|vt|vi|vr|aux|modal|adj|pron|prep|adv|det|art|particle|conj|interj|num|vi_impers|vt_impers|vi_prep_obj|vt_prep_obj",
-            "lemma": "base form" (if different from input),
-            "article": "der|die|das" (only for nouns, null otherwise),
-            "plural": "plural form" (only for nouns, null otherwise),
-            "tables": {{
-                "praesens": {{"ich": "form", "du": "form", "er_sie_es": "form", "wir": "form", "ihr": "form", "sie_Sie": "form"}},
-                "praeteritum": {{"ich": "form", "du": "form", "er_sie_es": "form", "wir": "form", "ihr": "form", "sie_Sie": "form"}},
-                "perfekt": {{"ich": "habe/bin + partizip", "du": "hast/bist + partizip", "er_sie_es": "hat/ist + partizip", "wir": "haben/sind + partizip", "ihr": "habt/seid + partizip", "sie_Sie": "haben/sind + partizip"}},
-                "plusquamperfekt": {{"ich": "hatte/war + partizip", "du": "hattest/warst + partizip", "er_sie_es": "hatte/war + partizip", "wir": "hatten/waren + partizip", "ihr": "hattet/wart + partizip", "sie_Sie": "hatten/waren + partizip"}},
-                "futur_i": {{"ich": "werde + infinitive", "du": "wirst + infinitive", "er_sie_es": "wird + infinitive", "wir": "werden + infinitive", "ihr": "werdet + infinitive", "sie_Sie": "werden + infinitive"}},
-                "futur_ii": {{"ich": "werde + partizip + haben/sein", "du": "wirst + partizip + haben/sein", "er_sie_es": "wird + partizip + haben/sein", "wir": "werden + partizip + haben/sein", "ihr": "werdet + partizip + haben/sein", "sie_Sie": "werden + partizip + haben/sein"}},
-                "konjunktiv_i": {{"ich": "subjunctive_i_form", "du": "subjunctive_i_form", "er_sie_es": "subjunctive_i_form", "wir": "subjunctive_i_form", "ihr": "subjunctive_i_form", "sie_Sie": "subjunctive_i_form"}},
-                "konjunktiv_ii": {{"ich": "subjunctive_ii_form", "du": "subjunctive_ii_form", "er_sie_es": "subjunctive_ii_form", "wir": "subjunctive_ii_form", "ihr": "subjunctive_ii_form", "sie_Sie": "subjunctive_ii_form"}},
-                "imperativ": {{"du": "imperative_form", "ihr": "imperative_form", "Sie": "imperative_form"}}
-            }} (include ALL available German tenses for verbs - minimum 5 core tenses required),
-            "translations_en": ["translation1", "translation2"],
-            "translations_zh": ["翻译1", "翻译2"],
-            "example": {{"de": "German sentence", "en": "English sentence", "zh": "中文句子"}}
-        }}
-        
-        If "{word}" is NOT a valid German word (including typos, non-German words, gibberish), return:
-        {{
-            "found": false,
-            "input_word": "{word}",
-            "suggestions": [
-                {{"word": "similar_word1", "pos": "noun", "meaning": "brief explanation"}},
-                {{"word": "similar_word2", "pos": "verb", "meaning": "brief explanation"}},
-                {{"word": "similar_word3", "pos": "adjective", "meaning": "brief explanation"}},
-                {{"word": "similar_word4", "pos": "noun", "meaning": "brief explanation"}},
-                {{"word": "similar_word5", "pos": "verb", "meaning": "brief explanation"}}
-            ],
-            "message": "'{word}' is not a recognized German word. Here are some similar words you might be looking for:"
-        }}
-        
-        CRITICAL RULES FOR SUGGESTIONS:
-        1. ONLY suggest real, common German words (A1-B2 level preferred)
-        2. Suggestions must be phonetically or orthographically similar to "{word}"
-        3. NO English words, NO made-up words, NO technical terms
-        4. Focus on basic vocabulary: nouns (der/die/das), common verbs, adjectives
-        5. Prefer words that German learners would actually need
-        6. If "{word}" looks like a typo of a German word, prioritize that word
-        7. Maximum 5 suggestions, ranked by similarity and usefulness
-        
-        Examples:
-        - "nim" → found: false (not a valid German word, suggest "nehmen")
-        - "gehe" → found: true (valid inflected form of "gehen")
-        - "xyz123" → found: false (gibberish)
         """
-        
-            response = await self.client.chat.completions.create(
+        Analyze a single German word and return JSON shaped exactly for your DB:
+        - Normalize everything into `word_forms`: [{feature_key, feature_value, form}]
+        - For verbs also return `verb_props` matching your VerbProps model
+        - Include translations + one example for UX
+
+        IMPORTANT (schema contract):
+        - Persons: ich, du, er_sie_es, wir, ihr, sie_Sie
+        - Tenses: praesens, praeteritum, perfekt, plusquamperfekt,
+                  futur_i, futur_ii, imperativ, konjunktiv_i, konjunktiv_ii
+        - For verbs, encode every cell as: feature_key="tense",
+          feature_value=f"{tense}_{person}", form="<conjugated>"
+        - Noun article → feature_key="gender", feature_value in {"masc","fem","neut"}, form in {"der","die","das"}
+        - Noun plural → feature_key="number", feature_value="plural", form="<Pluralform>"
+        - Adjective degrees → feature_key="degree", feature_value in {"positive","comparative","superlative"}
+        - Leave out unknown fields entirely (do NOT write 'null' or placeholders)
+        """
+        if not self.client:
+            raise RuntimeError("OpenAI API key not set; word analysis is unavailable")
+
+        # The exact JSON schema we want the model to follow.
+        system = (
+            "You are a meticulous German lexicon engine. "
+            "Always return STRICT JSON that matches the schema. "
+            "Never add explanatory text outside JSON. "
+            "If something is unknown, OMIT the field."
+        )
+
+        # NOTE: This prompt encodes directly into your DB model:
+        # - `word_forms` maps to WordForm rows (feature_key, feature_value, form)
+        # - `verb_props` maps to VerbProps (aux, partizip_ii, regularity, separable, prefix, reflexive, valency_json)
+        # - translations + example are for UX
+        user = f"""
+Return a single JSON object for the EXACT German word "{word}". Do NOT correct the input.
+
+If the word is VALID German (lemma or inflected form), produce:
+
+{{
+  "found": true,
+  "input_word": "{word}",
+  "lemma": "base lemma as used in dictionaries (preserve German capitalization rules)",
+  "pos": "one of: noun|verb|vt|vi|vr|aux|modal|adj|adv|prep|det|art|pron|conj|interj|num|vi_impers|vt_impers|vi_prep_obj|vt_prep_obj",
+
+  "word_forms": [
+    // VERBS: encode ALL available cells as tense+person
+    // Example: Präsens ich gehe → {{"feature_key":"tense","feature_value":"praesens_ich","form":"gehe"}}
+    // Include: praesens, praeteritum, perfekt, plusquamperfekt, futur_i, futur_ii, imperativ, konjunktiv_i, konjunktiv_ii
+    // Persons set: ich, du, er_sie_es, wir, ihr, sie_Sie
+    // Imperativ only du|ihr|Sie (still encode as tense_imperativ_<person>)
+    // If a specific cell truly doesn't exist, omit it.
+
+    // NOUNS:
+    // Article (gender): {{"feature_key":"gender","feature_value":"masc|fem|neut","form":"der|die|das"}}
+    // Plural (if exists): {{"feature_key":"number","feature_value":"plural","form":"<Plural>"}}
+
+    // ADJECTIVES:
+    // Degrees: positive (base form), comparative, superlative
+    // Example: {{"feature_key":"degree","feature_value":"comparative","form":"schöner"}}
+    //          {{"feature_key":"degree","feature_value":"superlative","form":"am schönsten"}}
+
+    // ADVERBS, PREPOSITIONS, CONJUNCTIONS, PRONOUNS, DETERMINERS, NUMERALS, PARTICLES, INTERJECTIONS:
+    // Provide forms only if there are actual inflected forms (e.g., pronoun case forms).
+    // Otherwise omit `word_forms` entries for those categories.
+    // PRONOUN example (if applicable):
+    //   {{"feature_key":"case","feature_value":"nom","form":"ich"}}, {{"feature_key":"case","feature_value":"akk","form":"mich"}}, ...
+
+  ],
+
+  // For verbs only; omit for other POS
+  "verb_props": {{
+    "aux": "haben|sein",
+    "partizip_ii": "gegangen",
+    "regularity": "weak|strong|mixed|irregular",
+    "separable": 0 or 1,
+    "prefix": "if verb has a clear (in)separable prefix else omit",
+    "reflexive": 0 or 1,
+    "valency_json": "OPTIONAL compact JSON as a string with minimal subcat info, else omit"
+  }},
+
+  "translations_en": ["natural, concise English senses"],
+  "translations_zh": ["准确、简洁的中文释义"],
+  "example": {{"de":"natural German sentence with the lemma", "en":"", "zh":""}}
+}}
+
+If "{word}" is NOT valid German, return exactly:
+{{
+  "found": false,
+  "input_word": "{word}",
+  "message": "not a recognized German word",
+  "suggestions": [
+    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}}
+  ]
+}}
+
+STRICT RULES:
+- JSON only. No extra text.
+- For persons use EXACT: ich, du, er_sie_es, wir, ihr, sie_Sie
+- For tenses use EXACT: praesens, praeteritum, perfekt, plusquamperfekt, futur_i, futur_ii, imperativ, konjunktiv_i, konjunktiv_ii
+- For noun article encode gender via: (gender, masc|fem|neut) + form in der/die/das.
+- For plural encode as: (number, plural) + the plural surface form.
+- Omit unknown fields entirely (do not set null or empty strings).
+"""
+
+        try:
+            resp = await self.client.chat.completions.create(
                 model=self.analysis_model,
                 messages=[
-                    {"role": "system", "content": "You are a precise German language assistant. Always respond with valid JSON."},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user}
                 ],
                 response_format={"type": "json_object"},
-                max_tokens=1000
+                temperature=0,
+                max_tokens=1400,
             )
-            
-            raw_result = json.loads(response.choices[0].message.content)
-            
-            # Validate and clean suggestions if word not found
-            if not raw_result.get("found", True):
-                clean_suggestions = self._validate_suggestions(raw_result.get("suggestions", []))
-                raw_result["suggestions"] = clean_suggestions
-            
-            return raw_result
-            
+
+            content = resp.choices[0].message.content
+            data = json.loads(content)
+
+            # Minimal sanity normalization to keep DB safe
+            if data.get("found") is True:
+                # enforce array types
+                data["word_forms"] = [wf for wf in data.get("word_forms", []) if isinstance(wf, dict)]
+                for wf in data["word_forms"]:
+                    # hard trim
+                    wf["feature_key"] = (wf.get("feature_key") or "").strip()
+                    wf["feature_value"] = (wf.get("feature_value") or "").strip()
+                    wf["form"] = (wf.get("form") or "").strip()
+                # scrub empty forms
+                data["word_forms"] = [wf for wf in data["word_forms"] if wf["feature_key"] and wf["feature_value"] and wf["form"]]
+
+                # verb_props only for verbs
+                if data.get("pos","").startswith("v"):
+                    vp = data.get("verb_props") or {}
+                    # coerce booleans to 0/1 for DB integers if present
+                    if "separable" in vp and isinstance(vp["separable"], bool):
+                        vp["separable"] = 1 if vp["separable"] else 0
+                    if "reflexive" in vp and isinstance(vp["reflexive"], bool):
+                        vp["reflexive"] = 1 if vp["reflexive"] else 0
+                    data["verb_props"] = vp
+                else:
+                    data.pop("verb_props", None)
+
+                # translations
+                data["translations_en"] = [t for t in data.get("translations_en", []) if isinstance(t, str) and t.strip()]
+                data["translations_zh"] = [t for t in data.get("translations_zh", []) if isinstance(t, str) and t.strip()]
+
+            return data
+
         except Exception as e:
             logging.error(f"OpenAI API error for word '{word}': {str(e)}")
+            # Surface helpful diagnostics to your callers
             if "401" in str(e):
-                raise RuntimeError(f"Authentication failed with OpenRouter. Please check your API key and account status. Error: {str(e)}")
+                raise RuntimeError(f"Authentication failed. Check API key / account. Error: {str(e)}")
             elif "403" in str(e):
-                raise RuntimeError(f"Access forbidden. Your OpenRouter account may lack permissions or credits. Error: {str(e)}")
+                raise RuntimeError(f"Access forbidden. Permissions/credits? Error: {str(e)}")
             elif "429" in str(e):
-                raise RuntimeError(f"Rate limit exceeded. Please try again later. Error: {str(e)}")
+                raise RuntimeError(f"Rate limit exceeded. Try later. Error: {str(e)}")
             else:
                 raise RuntimeError(f"API request failed: {str(e)}")
 
