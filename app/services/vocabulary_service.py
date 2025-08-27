@@ -14,6 +14,12 @@ from app.models.user import User
 class VocabularyService:
     def __init__(self):
         self.openai_service = OpenAIService()
+        
+        # --- language gate settings ---
+        self.LANGUAGE_CONF_THRESHOLD = 0.90
+        self.MAX_LANGS_TO_SHOW = 3
+        self.MAX_SENSES_PER_LANG = 5
+        
         # Simple fallback dictionary for common German words
         self.fallback_translations = {
             "bezahlen": {
@@ -157,9 +163,9 @@ class VocabularyService:
         """
         统一的单词查询接口：
         1. 先查本地词库
-        2. 不存在则调用OpenAI分析
-        3. 保存到词库供后续使用
-        4. 记录用户搜索历史
+        2. 语言门禁：如果不是"只德语"或存在其他强备选语言 → 返回 UI 建议（不落库）
+        3. 不触发门禁或用户已确认德语 → 调用OpenAI分析 + 落库
+        4. 记录搜索历史
         """
         
         # 1. 先查本地词库（精确匹配或变位匹配）
@@ -178,17 +184,32 @@ class VocabularyService:
                 # 返回格式化的词库数据
                 return await self._format_word_data(existing_word, from_database=True)
         
-        # 2. 本地不存在，先尝试fallback字典，然后调用OpenAI分析
+        # 2. fallback dictionary (still immediate)
         fallback_data = self._get_fallback_translation(lemma.lower())
-        
         if fallback_data:
-            print(f"Using fallback translation for '{lemma}'")
-            # 创建并保存fallback数据到数据库
             word = await self._save_word_to_database(db, lemma, fallback_data)
             await self._log_search_history(db, user, lemma, "word_lookup", from_database=False)
             return await self._format_word_data(word, from_database=False, openai_data=fallback_data)
-        
-        # 3. 没有fallback，调用OpenAI分析
+
+        # 3. language gate (scenarios a/b/c/d with threshold 0.90)
+        try:
+            gate = await self._language_gate(lemma)
+        except Exception as e:
+            gate = {"scenario": "none", "error": str(e), "sections": []}
+
+        if self._gate_wants_ui_stop(gate):
+            # Hand back suggestions for UI to render, do NOT write to DB yet.
+            await self._log_search_history(db, user, lemma, "lang_gate", from_database=False)
+            return {
+                "found": False,
+                "original": lemma,
+                "flow": "multi_lang_suggestions",
+                "threshold": self.LANGUAGE_CONF_THRESHOLD,
+                "ui_suggestions": gate,   # render `sections`, use `cta` fields to pick/lookup
+                "source": "lang_gate"
+            }
+
+        # 4. Not stopped by the gate → treat as German and analyze+save
         try:
             print(f"Word '{lemma}' not found in database, calling OpenAI...")
         except UnicodeEncodeError:
@@ -264,6 +285,92 @@ class VocabularyService:
     def _get_fallback_translation(self, lemma: str) -> Optional[Dict[str, Any]]:
         """Get fallback translation from built-in dictionary"""
         return self.fallback_translations.get(lemma)
+
+    async def _language_gate(self, surface: str) -> Dict[str, Any]:
+        """
+        Run the multi-language detector/translator aggregator.
+        Returns a dict with scenario + sections (UI-ready).
+        """
+        return await self.openai_service.translate_ambiguous_to_german_v2(
+            text=surface,
+            min_conf=self.LANGUAGE_CONF_THRESHOLD,
+            max_langs=self.MAX_LANGS_TO_SHOW,
+            max_senses=self.MAX_SENSES_PER_LANG
+        )
+
+    def _gate_wants_ui_stop(self, gate: Dict[str, Any]) -> bool:
+        """
+        Decide if we should pause and let the UI show choices.
+        True -> return suggestions to frontend and DO NOT write DB yet.
+        False -> proceed with normal German lookup/creation.
+        Rules:
+          - If no language passed threshold -> proceed (False).
+          - If German not present at/above threshold -> stop for UI (True).
+          - If German present AND there are other (non-DE) strong candidates -> stop for UI (True).
+          - If only German passed -> proceed (False).
+        """
+        scenario = gate.get("scenario")
+        if scenario == "none":
+            return False
+
+        # is there a compact German card?
+        has_de = any(
+            s.get("type") == "german_candidate" and s.get("lang") == "de"
+            for s in gate.get("sections", [])
+        )
+        non_de_sections = [s for s in gate.get("sections", []) if s.get("type") == "source_language"]
+
+        if not has_de:
+            # not confidently German -> let UI choose
+            return True
+
+        # German + others above threshold -> let UI choose one
+        return len(non_de_sections) > 0
+
+    async def resolve_candidate_and_save(
+        self,
+        db: Session,
+        german_lemma: str,
+        user: User
+    ) -> Dict[str, Any]:
+        """
+        User picked a German candidate from the UI suggestions.
+        We directly run the normal creation flow WITHOUT the language gate.
+        """
+        # try DB first
+        existing_word = await self._find_existing_word(db, german_lemma)
+        if existing_word:
+            await self._log_search_history(db, user, german_lemma, "word_lookup", from_database=True)
+            return await self._format_word_data(existing_word, from_database=True)
+
+        # not in DB -> analyze + save
+        try:
+            openai_analysis = await self.openai_service.analyze_word(german_lemma)
+        except Exception as openai_error:
+            return {
+                "found": False,
+                "original": german_lemma,
+                "message": f"Analysis failed for '{german_lemma}': {openai_error}",
+                "suggestions": [],
+                "source": "error_fallback"
+            }
+
+        if not openai_analysis or not openai_analysis.get("found", True):
+            await self._log_search_history(db, user, german_lemma, "word_lookup_not_found", from_database=False)
+            return {
+                "found": False,
+                "original": german_lemma,
+                "suggestions": openai_analysis.get("suggestions", []) if openai_analysis else [],
+                "message": (openai_analysis.get("message") if openai_analysis else f"'{german_lemma}' not recognized."),
+                "source": "openai_suggestions"
+            }
+
+        if not openai_analysis.get("pos"):
+            raise ValueError("OpenAI returned invalid analysis payload")
+
+        word = await self._save_word_to_database(db, german_lemma, openai_analysis)
+        await self._log_search_history(db, user, german_lemma, "word_lookup", from_database=False)
+        return await self._format_word_data(word, from_database=False, openai_data=openai_analysis)
     async def _save_word_to_database(self, db: Session, original_query: str, openai_analysis: Dict[str, Any]) -> WordLemma:
         """Save OpenAI analysis to DB (idempotent/upsert-ish)."""
         if not self._validate_openai_analysis(openai_analysis, original_query):
