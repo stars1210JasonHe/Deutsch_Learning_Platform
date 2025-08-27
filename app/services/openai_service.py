@@ -1,12 +1,37 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Dict, Any, Optional
 from openai import AsyncOpenAI
 from app.core.config import settings
 
 
 class OpenAIService:
+    _EXONYM_TO_DE = {
+        # Common English → German endonyms (extend as needed)
+        "austria": "Österreich",
+        "germany": "Deutschland",
+        "switzerland": "Schweiz",
+        "france": "Frankreich",
+        "spain": "Spanien",
+        "italy": "Italien",
+        "japan": "Japan",
+        "china": "China",
+        "south korea": "Südkorea",
+        "north korea": "Nordkorea",
+        "poland": "Polen",
+        "belgium": "Belgien",
+        "portugal": "Portugal",
+        "russia": "Russland",
+        "netherlands": "Niederlande",
+        "czech republic": "Tschechien",
+        "united states": "Vereinigte Staaten",
+        "u.s.a.": "USA",
+        "usa": "USA",
+        "united kingdom": "Vereinigtes Königreich",
+        "great britain": "Großbritannien",
+    }
     def __init__(self):
         if not settings.openai_api_key:
             logging.warning("OpenAI API key not set. OpenAI features will be disabled.")
@@ -39,6 +64,82 @@ class OpenAIService:
         self.translation_model = settings.openai_translation_model or settings.openai_model
         self.exam_model = settings.openai_exam_model or settings.openai_model
         self.image_model = settings.openai_image_model or "dall-e-2"  # Default to DALL-E 2 for images
+
+    def _parse_json_safely(self, content: str, word: str = "") -> Dict[str, Any]:
+        """
+        Robust JSON parsing with error recovery for malformed OpenAI responses
+        """
+        if not content or not content.strip():
+            return {"found": False, "error": "Empty response"}
+
+        content = content.strip()
+        
+        try:
+            # Try direct parsing first
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            logging.warning(f"JSON parse error for '{word}': {e}")
+            
+            try:
+                # Attempt to fix common JSON issues
+                fixed_content = self._fix_common_json_issues(content)
+                return json.loads(fixed_content)
+            except json.JSONDecodeError as e2:
+                logging.error(f"Failed to fix JSON for '{word}': {e2}")
+                # Return a safe fallback
+                return {
+                    "found": False,
+                    "error": f"JSON parsing failed: {str(e)}",
+                    "original_content": content[:200] + "..." if len(content) > 200 else content
+                }
+
+    def _fix_common_json_issues(self, content: str) -> str:
+        """
+        Fix common JSON formatting issues from OpenAI responses
+        """
+        # Remove any text before the first {
+        if '{' in content:
+            content = content[content.find('{'):]
+        
+        # Remove any text after the last }
+        if '}' in content:
+            content = content[:content.rfind('}') + 1]
+        
+        # Fix unterminated strings by finding unmatched quotes
+        # This is a basic fix - more sophisticated parsing could be added
+        lines = content.split('\n')
+        fixed_lines = []
+        
+        for line in lines:
+            # Skip empty lines or comments
+            if not line.strip() or line.strip().startswith('//'):
+                continue
+                
+            # Fix missing quotes around property names
+            line = re.sub(r'(\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', line)
+            
+            # Fix unterminated strings at end of line (add closing quote before comma/brace)
+            if '"' in line and line.count('"') % 2 == 1:
+                # Find the last quote and see if string is unterminated
+                last_quote = line.rfind('"')
+                after_quote = line[last_quote + 1:].strip()
+                if after_quote and after_quote[0] not in ',}]':
+                    # Insert closing quote before comma or brace
+                    if ',' in after_quote:
+                        comma_pos = after_quote.find(',')
+                        line = line[:last_quote + 1] + after_quote[:comma_pos] + '"' + after_quote[comma_pos:]
+                    elif any(c in after_quote for c in '}]'):
+                        for delimiter in '}]':
+                            if delimiter in after_quote:
+                                delim_pos = after_quote.find(delimiter)
+                                line = line[:last_quote + 1] + after_quote[:delim_pos] + '"' + after_quote[delim_pos:]
+                                break
+                    else:
+                        line = line + '"'
+            
+            fixed_lines.append(line)
+        
+        return '\n'.join(fixed_lines)
 
     async def analyze_word(self, word: str) -> Dict[str, Any]:
         """
@@ -153,11 +254,17 @@ STRICT RULES:
                 ],
                 response_format={"type": "json_object"},
                 temperature=0,
-                max_tokens=1400,
+                max_tokens=2500,
             )
 
+            if not resp or not resp.choices or not resp.choices[0].message:
+                raise RuntimeError("Invalid OpenAI API response structure")
+                
             content = resp.choices[0].message.content
-            data = json.loads(content)
+            if not content:
+                raise RuntimeError("Empty content from OpenAI API")
+                
+            data = self._parse_json_safely(content, word)
 
             # Minimal sanity normalization to keep DB safe
             if data.get("found") is True:
@@ -186,6 +293,13 @@ STRICT RULES:
                 # translations
                 data["translations_en"] = [t for t in data.get("translations_en", []) if isinstance(t, str) and t.strip()]
                 data["translations_zh"] = [t for t in data.get("translations_zh", []) if isinstance(t, str) and t.strip()]
+
+            # Check for parsing errors and provide detailed feedback
+            if data.get("error"):
+                error_msg = f"JSON parsing failed for '{word}': {data.get('error')}"
+                if data.get("original_content"):
+                    error_msg += f" | Content preview: {data.get('original_content')[:100]}..."
+                raise RuntimeError(error_msg)
 
             return data
 
@@ -317,7 +431,7 @@ STRICT RULES:
                 max_tokens=1000
             )
             
-            return json.loads(response.choices[0].message.content)
+            return self._parse_json_safely(response.choices[0].message.content, "translation")
             
         except Exception as e:
             raise
@@ -370,82 +484,243 @@ STRICT RULES:
                 max_tokens=200
             )
             
-            return json.loads(response.choices[0].message.content)
+            return self._parse_json_safely(response.choices[0].message.content, f"language_detection:{text[:20]}")
             
         except Exception as e:
             logging.error(f"Language detection error for text '{text}': {str(e)}")
             raise
 
+    # async def translate_to_german(self, text: str, source_language: str = None) -> Dict[str, Any]:
+    #     """Translate text to German, handling multiple possible translations"""
+    #     if not self.client:
+    #         raise RuntimeError("OpenAI API key not set; translation is unavailable")
+            
+    #     try:
+    #         source_info = f" from {source_language}" if source_language else ""
+            
+    #         prompt = f"""
+    #         Translate the word "{text}"{source_info} to German.
+            
+    #         IMPORTANT: This is for single WORD translation, not sentences.
+    #         If the word has multiple meanings, provide ALL relevant German translations.
+            
+    #         Return JSON with this structure:
+    #         {{
+    #             "translations": [
+    #                 {{
+    #                     "german_word": "German translation",
+    #                     "context": "brief context/meaning description", 
+    #                     "pos": "noun|verb|adjective|etc"
+    #                 }}
+    #             ],
+    #             "is_ambiguous": true|false,
+    #             "source_language": "detected_language_code"
+    #         }}
+            
+    #         Examples:
+    #         - "bank" → [{{"german_word": "Bank", "context": "financial institution", "pos": "noun"}}, {{"german_word": "Ufer", "context": "river bank", "pos": "noun"}}]
+    #         - "hello" → [{{"german_word": "hallo", "context": "greeting", "pos": "interjection"}}]
+            
+    #         If no German translation exists, return empty translations array.
+    #         Set is_ambiguous to true if there are multiple valid translations.
+    #         """
+            
+    #         response = await self.client.chat.completions.create(
+    #             model=self.translation_model,
+    #             messages=[
+    #                 {"role": "system", "content": "You are a precise translation assistant specializing in German. Always respond with valid JSON."},
+    #                 {"role": "user", "content": prompt}
+    #             ],
+    #             response_format={"type": "json_object"},
+    #             max_tokens=400
+    #         )
+            
+    #         result = self._parse_json_safely(response.choices[0].message.content, f"translate_to_german:{text[:20]}")
+            
+    #         # Validate translations structure
+    #         if "translations" not in result or not isinstance(result["translations"], list):
+    #             result["translations"] = []
+            
+    #         # Ensure each translation has required fields
+    #         valid_translations = []
+    #         for trans in result["translations"]:
+    #             if isinstance(trans, dict) and "german_word" in trans:
+    #                 valid_translations.append({
+    #                     "german_word": trans.get("german_word", ""),
+    #                     "context": trans.get("context", ""),
+    #                     "pos": trans.get("pos", "")
+    #                 })
+            
+    #         result["translations"] = valid_translations
+    #         result["is_ambiguous"] = len(valid_translations) > 1
+            
+    #         return result
+            
+    #     except Exception as e:
+    #         logging.error(f"Translation error for text '{text}': {str(e)}")
+    #         raise
     async def translate_to_german(self, text: str, source_language: str = None) -> Dict[str, Any]:
-        """Translate text to German, handling multiple possible translations"""
+        """
+        Translate a single word to German with strict constraints:
+        - Return genuine German words (no English exonyms)
+        - JSON shape: {"translations":[{"german_word","context","pos"}], "is_ambiguous":bool, "source_language": "xx"}
+        - Post-validate and autocorrect common exonyms (Austria->Österreich, etc.)
+        """
         if not self.client:
             raise RuntimeError("OpenAI API key not set; translation is unavailable")
-            
+
+        src = source_language or "unknown"
+
+        # Strong, explicit prompt (per MD recommendations)
+        # Key ideas:
+        #  - “GERMAN (Deutsch) ONLY”
+        #  - Concrete examples of correct endonyms
+        #  - Validation statement that english exonyms are invalid
+        prompt = f"""
+Translate this {src} word to GERMAN (Deutsch) as a single WORD (not a sentence): "{text}"
+
+CRITICAL REQUIREMENTS:
+- Output MUST be an ACTUAL German word (Endonym), NEVER English.
+- If the correct German form includes umlauts/ß, use them (ä, ö, ü, ß).
+- Return JSON only.
+
+Examples of CORRECT German country names (do NOT output English):
+- Austria → Österreich
+- Germany → Deutschland
+- Switzerland → Schweiz
+- France → Frankreich
+- United States → Vereinigte Staaten / USA
+- Netherlands → Niederlande
+
+Return JSON:
+{{
+  "translations": [
+    {{
+      "german_word": "GERMAN_WORD_ONLY",
+      "context": "brief meaning or domain",
+      "pos": "noun|verb|adjective|interj|adv|prep|det|pron|conj|num"
+    }}
+  ],
+  "is_ambiguous": true|false,
+  "source_language": "{src}"
+}}
+
+VALIDATION:
+- "german_word" MUST be German. English exonyms (e.g., "Austria") are invalid.
+- If you are unsure, pick the most common German endonym used by native speakers.
+"""
+
         try:
-            source_info = f" from {source_language}" if source_language else ""
-            
-            prompt = f"""
-            Translate the word "{text}"{source_info} to German.
-            
-            IMPORTANT: This is for single WORD translation, not sentences.
-            If the word has multiple meanings, provide ALL relevant German translations.
-            
-            Return JSON with this structure:
-            {{
-                "translations": [
-                    {{
-                        "german_word": "German translation",
-                        "context": "brief context/meaning description", 
-                        "pos": "noun|verb|adjective|etc"
-                    }}
-                ],
-                "is_ambiguous": true|false,
-                "source_language": "detected_language_code"
-            }}
-            
-            Examples:
-            - "bank" → [{{"german_word": "Bank", "context": "financial institution", "pos": "noun"}}, {{"german_word": "Ufer", "context": "river bank", "pos": "noun"}}]
-            - "hello" → [{{"german_word": "hallo", "context": "greeting", "pos": "interjection"}}]
-            
-            If no German translation exists, return empty translations array.
-            Set is_ambiguous to true if there are multiple valid translations.
-            """
-            
             response = await self.client.chat.completions.create(
                 model=self.translation_model,
                 messages=[
-                    {"role": "system", "content": "You are a precise translation assistant specializing in German. Always respond with valid JSON."},
+                    {"role": "system", "content": "You are a precise German lexicon translator. Output strict JSON, no commentary."},
                     {"role": "user", "content": prompt}
                 ],
                 response_format={"type": "json_object"},
-                max_tokens=400
+                temperature=0.1,       # more deterministic (per MD)
+                max_tokens=600         # allow enough room (per MD)
             )
-            
-            result = json.loads(response.choices[0].message.content)
-            
-            # Validate translations structure
-            if "translations" not in result or not isinstance(result["translations"], list):
-                result["translations"] = []
-            
-            # Ensure each translation has required fields
-            valid_translations = []
-            for trans in result["translations"]:
-                if isinstance(trans, dict) and "german_word" in trans:
-                    valid_translations.append({
-                        "german_word": trans.get("german_word", ""),
-                        "context": trans.get("context", ""),
-                        "pos": trans.get("pos", "")
-                    })
-            
-            result["translations"] = valid_translations
-            result["is_ambiguous"] = len(valid_translations) > 1
-            
+
+            raw = self._parse_json_safely(response.choices[0].message.content, f"translate_to_german:{text[:40]}")
+            # Normalize structure
+            translations = raw.get("translations") if isinstance(raw, dict) else None
+            if not isinstance(translations, list):
+                translations = []
+
+            cleaned: list[Dict[str, str]] = []
+            for item in translations:
+                if not isinstance(item, dict):
+                    continue
+                gw = (item.get("german_word") or "").strip()
+                ctx = (item.get("context") or "").strip()
+                pos = (item.get("pos") or "").strip().lower()
+
+                if not gw:
+                    continue
+
+                # First, correct very common English exonyms (Austria, Germany, …)
+                exonym_key = gw.lower()
+                if exonym_key in self._EXONYM_TO_DE:
+                    gw = self._EXONYM_TO_DE[exonym_key]
+
+                # If still looks English, reject it
+                if not self._looks_like_german_word(gw):
+                    continue
+
+                gw = self._normalize_german_output(gw, pos=pos or "noun")
+
+                cleaned.append({
+                    "german_word": gw,
+                    "context": ctx,
+                    "pos": pos or "noun"
+                })
+
+            # If nothing survived, try a reinforced retry once
+            if not cleaned:
+                retry_prompt = f"""
+Your previous answer contained a non-German form. Try again.
+
+Task: Translate the {src} word to an ACTUAL German word (Deutsch), one word only.
+Word: "{text}"
+
+Rules:
+- English forms are invalid. For example, output "Österreich" not "Austria".
+- Use umlauts/ß when correct.
+- JSON only.
+
+Return JSON:
+{{
+  "translations": [{{"german_word":"...", "context":"", "pos":"noun|verb|adj|..."}}]],
+  "is_ambiguous": false,
+  "source_language": "{src}"
+}}
+"""
+                response2 = await self.client.chat.completions.create(
+                    model=self.translation_model,
+                    messages=[
+                        {"role": "system", "content": "You are a strict German translator. Output JSON only."},
+                        {"role": "user", "content": retry_prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.0,
+                    max_tokens=400
+                )
+                raw2 = self._parse_json_safely(response2.choices[0].message.content, f"translate_to_german:retry:{text[:40]}")
+                translations2 = raw2.get("translations") if isinstance(raw2, dict) else None
+                if isinstance(translations2, list):
+                    for item in translations2:
+                        if not isinstance(item, dict):
+                            continue
+                        gw = (item.get("german_word") or "").strip()
+                        ctx = (item.get("context") or "").strip()
+                        pos = (item.get("pos") or "").strip().lower()
+                        if not gw:
+                            continue
+                        # Exonym correction + validation
+                        exonym_key = gw.lower()
+                        if exonym_key in self._EXONYM_TO_DE:
+                            gw = self._EXONYM_TO_DE[exonym_key]
+                        if not self._looks_like_german_word(gw):
+                            continue
+                        gw = self._normalize_german_output(gw, pos=pos or "noun")
+                        cleaned.append({
+                            "german_word": gw,
+                            "context": ctx,
+                            "pos": pos or "noun"
+                        })
+
+            result = {
+                "translations": cleaned,
+                "is_ambiguous": len(cleaned) > 1,
+                "source_language": src
+            }
+
             return result
-            
+
         except Exception as e:
             logging.error(f"Translation error for text '{text}': {str(e)}")
             raise
-
     async def chat_completion(self, messages: list, max_tokens: int = 800, temperature: float = 0.7) -> Dict[str, Any]:
         """General chat completion method for conversational AI"""
         if not self.client:
@@ -471,7 +746,53 @@ STRICT RULES:
         except Exception as e:
             logging.error(f"OpenAI chat completion error: {str(e)}")
             raise
+    def _looks_like_german_word(self, w: str) -> bool:
+        """
+        Lightweight check that a token is plausibly German (not English).
+        This is heuristic by design; we prefer false negatives to false positives.
+        """
+        if not w or not isinstance(w, str):
+            return False
+        s = w.strip()
 
+        # Obvious German signals
+        if any(ch in s for ch in "äöüÄÖÜß"):
+            return True
+
+        # Common German morphology/orthography signals
+        lower = s.lower()
+        germanish_suffixes = (
+            "ung", "heit", "keit", "schaft", "tion", "tät", "chen", "lein", "lich", "ig", "bar",
+            "ieren", "en", "eln", "ern", "keit", "nis"
+        )
+        if any(lower.endswith(suf) for suf in germanish_suffixes):
+            return True
+
+        # Capitalized single-word nouns (not perfect, but useful)
+        if " " not in s and s[:1].isupper():
+            return True
+
+        # Reject obvious English stopwords/exonyms (handled elsewhere too)
+        english_stops = {"the","and","or","a","an","is","are"}
+        if lower in english_stops:
+            return False
+
+        # Default: neutral (allow)
+        return True
+
+    def _normalize_german_output(self, word: str, pos: str = "") -> str:
+        """
+        Normalize spacing and capitalization for DB search & display.
+        - Keep proper capitalization (German nouns capitalized, country names usually capitalized).
+        - Preserve umlauts/ß if present.
+        """
+        if not word:
+            return word
+        s = " ".join(word.strip().split())
+        # For single-token nouns or proper names, Titlecase is usually correct
+        if pos and pos.lower() in {"noun"} and " " not in s:
+            return s[:1].upper() + s[1:]
+        return s
     async def generate_image(self, prompt: str, model: str = None, size: str = "512x512", quality: str = "standard") -> Dict[str, Any]:
         """Generate an image using DALL-E"""
         if not self.image_client:
