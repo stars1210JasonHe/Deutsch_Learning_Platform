@@ -6,6 +6,8 @@ from typing import Dict, Any, Optional
 from openai import AsyncOpenAI
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class OpenAIService:
     _EXONYM_TO_DE = {
@@ -32,6 +34,10 @@ class OpenAIService:
         "united kingdom": "Vereinigtes Königreich",
         "great britain": "Großbritannien",
     }
+    def _normalize_surface(self, s: str) -> str:
+        if not isinstance(s, str):
+            return ""
+        return " ".join(s.strip().split())
     def __init__(self):
         if not settings.openai_api_key:
             logging.warning("OpenAI API key not set. OpenAI features will be disabled.")
@@ -232,6 +238,11 @@ If "{word}" is NOT valid German, return exactly:
   "input_word": "{word}",
   "message": "not a recognized German word",
   "suggestions": [
+    // Provide EXACTLY 5 similar-sounding or related German words
+    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
+    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
+    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
+    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
     {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}}
   ]
 }}
@@ -265,6 +276,7 @@ STRICT RULES:
                 raise RuntimeError("Empty content from OpenAI API")
                 
             data = self._parse_json_safely(content, word)
+            logger.info(f"DEBUG - Full OpenAI response for '{word}': {data}")
 
             # Minimal sanity normalization to keep DB safe
             if data.get("found") is True:
@@ -293,6 +305,17 @@ STRICT RULES:
                 # translations
                 data["translations_en"] = [t for t in data.get("translations_en", []) if isinstance(t, str) and t.strip()]
                 data["translations_zh"] = [t for t in data.get("translations_zh", []) if isinstance(t, str) and t.strip()]
+            else:
+                # For not found words, validate and ensure 5 suggestions
+                suggestions = data.get("suggestions", [])
+                logger.info(f"DEBUG - OpenAI raw response for '{word}': suggestions={suggestions}, len={len(suggestions) if suggestions else 0}")
+                if suggestions:
+                    validated_suggestions = self._validate_suggestions(suggestions)
+                    logger.info(f"DEBUG - After validation for '{word}': validated_suggestions={validated_suggestions}, len={len(validated_suggestions) if validated_suggestions else 0}")
+                    data["suggestions"] = validated_suggestions
+                else:
+                    logger.info(f"DEBUG - No suggestions returned by OpenAI for '{word}'")
+                    data["suggestions"] = []
 
             # Check for parsing errors and provide detailed feedback
             if data.get("error"):
@@ -317,7 +340,9 @@ STRICT RULES:
 
     def _validate_suggestions(self, suggestions: list) -> list:
         """Validate and filter OpenAI suggestions to ensure quality"""
+        logger.info(f"DEBUG - Validating {len(suggestions) if suggestions else 0} suggestions: {suggestions}")
         if not suggestions or not isinstance(suggestions, list):
+            logger.info("DEBUG - No suggestions or not a list, returning empty")
             return []
         
         # Common German words that should be prioritized
@@ -337,16 +362,20 @@ STRICT RULES:
         valid_suggestions = []
         seen_words = set()
         
-        for suggestion in suggestions:
+        for i, suggestion in enumerate(suggestions):
+            logger.info(f"DEBUG - Processing suggestion {i}: {suggestion}")
             if not isinstance(suggestion, dict):
+                logger.info(f"DEBUG - Suggestion {i} not a dict, skipping")
                 continue
                 
             word = suggestion.get('word', '').strip().lower()
             pos = suggestion.get('pos', '').strip().lower()
             meaning = suggestion.get('meaning', '').strip()
+            logger.info(f"DEBUG - Extracted: word='{word}', pos='{pos}', meaning='{meaning}'")
             
             # Skip if missing required fields
             if not word or not pos or not meaning:
+                logger.info(f"DEBUG - Suggestion {i} missing required fields, skipping")
                 continue
                 
             # Skip duplicates
@@ -398,6 +427,7 @@ STRICT RULES:
         for suggestion in valid_suggestions:
             suggestion.pop('_priority', None)
             
+        logger.info(f"DEBUG - Final validated suggestions: {valid_suggestions[:5]}")
         return valid_suggestions[:5]
 
     async def translate_sentence(self, sentence: str) -> Dict[str, Any]:
@@ -435,7 +465,69 @@ STRICT RULES:
             
         except Exception as e:
             raise
+    async def detect_language_multi(self, text: str, max_langs: int = 5) -> Dict[str, Any]:
+        """
+        Returns top likely languages for 'text' (not thresholded here).
+        {
+        "candidates":[
+            {"lang":"de","name":"German","confidence":0.92,"is_german":true},
+            ...
+        ]
+        }
+        """
+        if not self.client:
+            raise RuntimeError("OpenAI API key not set; language detection is unavailable")
 
+        user_prompt = f"""
+    Analyze the single token: "{text}"
+
+    Return strict JSON with up to {max_langs} likely source languages, sorted by confidence (desc).
+    If German is plausible, include it.
+
+    JSON schema:
+    {{
+    "candidates": [
+        {{"lang":"ISO-639-1","name":"Language Name","confidence":0.00,"is_german":true|false}}
+    ]
+    }}
+
+    Rules:
+    - Use ISO 639-1 (de,en,fr,es,it,zh,ru,pl,nl,sv,da,no,fi,cs,tr,pt,ja,ko,ar,he,el, etc.)
+    - Confidence in [0,1].
+    - JSON only. No extra text.
+    """
+
+        resp = await self.client.chat.completions.create(
+            model=self.translation_model,
+            messages=[
+                {"role": "system", "content": "You are a precise language detector for single tokens. Output strict JSON only."},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+            max_tokens=400,
+        )
+        data = self._parse_json_safely(resp.choices[0].message.content, f"lang_multi:{text[:40]}")
+        cands = data.get("candidates", [])
+        if not isinstance(cands, list):
+            cands = []
+
+        cleaned = []
+        for c in cands:
+            if not isinstance(c, dict):
+                continue
+            lang = (c.get("lang") or "").strip().lower()
+            name = self._normalize_surface(c.get("name", "")) or lang
+            try:
+                conf = float(c.get("confidence", 0))
+            except Exception:
+                conf = 0.0
+            is_de = bool(c.get("is_german", lang == "de"))
+            if lang and 0.0 <= conf <= 1.0:
+                cleaned.append({"lang": lang, "name": name, "confidence": conf, "is_german": is_de})
+
+        cleaned.sort(key=lambda x: x["confidence"], reverse=True)
+        return {"candidates": cleaned[:max_langs]}
     async def detect_language(self, text: str) -> Dict[str, Any]:
         """Detect the language of input text"""
         if not self.client:
@@ -489,76 +581,147 @@ STRICT RULES:
         except Exception as e:
             logging.error(f"Language detection error for text '{text}': {str(e)}")
             raise
+    async def translate_ambiguous_to_german_v2(
+        self,
+        text: str,
+        *,
+        min_conf: float = 0.90,     # (1) threshold: show >= 0.90 only
+        max_langs: int = 3,         # show at most 3 languages
+        max_senses: int = 5         # cap meanings
+    ) -> Dict[str, Any]:
+        """
+        Pipeline & UI contract:
+        - detect up to 5 languages, keep only those >= min_conf, cap to max_langs
+        - classify scenario (a/b/c/d) based on presence of German
+        - for each non-German language, translate -> German (capped senses)
+        - if German present, add compact German section (click to DB lookup)
+        - return JSON the frontend can render directly
+        """
 
-    # async def translate_to_german(self, text: str, source_language: str = None) -> Dict[str, Any]:
-    #     """Translate text to German, handling multiple possible translations"""
-    #     if not self.client:
-    #         raise RuntimeError("OpenAI API key not set; translation is unavailable")
-            
-    #     try:
-    #         source_info = f" from {source_language}" if source_language else ""
-            
-    #         prompt = f"""
-    #         Translate the word "{text}"{source_info} to German.
-            
-    #         IMPORTANT: This is for single WORD translation, not sentences.
-    #         If the word has multiple meanings, provide ALL relevant German translations.
-            
-    #         Return JSON with this structure:
-    #         {{
-    #             "translations": [
-    #                 {{
-    #                     "german_word": "German translation",
-    #                     "context": "brief context/meaning description", 
-    #                     "pos": "noun|verb|adjective|etc"
-    #                 }}
-    #             ],
-    #             "is_ambiguous": true|false,
-    #             "source_language": "detected_language_code"
-    #         }}
-            
-    #         Examples:
-    #         - "bank" → [{{"german_word": "Bank", "context": "financial institution", "pos": "noun"}}, {{"german_word": "Ufer", "context": "river bank", "pos": "noun"}}]
-    #         - "hello" → [{{"german_word": "hallo", "context": "greeting", "pos": "interjection"}}]
-            
-    #         If no German translation exists, return empty translations array.
-    #         Set is_ambiguous to true if there are multiple valid translations.
-    #         """
-            
-    #         response = await self.client.chat.completions.create(
-    #             model=self.translation_model,
-    #             messages=[
-    #                 {"role": "system", "content": "You are a precise translation assistant specializing in German. Always respond with valid JSON."},
-    #                 {"role": "user", "content": prompt}
-    #             ],
-    #             response_format={"type": "json_object"},
-    #             max_tokens=400
-    #         )
-            
-    #         result = self._parse_json_safely(response.choices[0].message.content, f"translate_to_german:{text[:20]}")
-            
-    #         # Validate translations structure
-    #         if "translations" not in result or not isinstance(result["translations"], list):
-    #             result["translations"] = []
-            
-    #         # Ensure each translation has required fields
-    #         valid_translations = []
-    #         for trans in result["translations"]:
-    #             if isinstance(trans, dict) and "german_word" in trans:
-    #                 valid_translations.append({
-    #                     "german_word": trans.get("german_word", ""),
-    #                     "context": trans.get("context", ""),
-    #                     "pos": trans.get("pos", "")
-    #                 })
-            
-    #         result["translations"] = valid_translations
-    #         result["is_ambiguous"] = len(valid_translations) > 1
-            
-    #         return result
-            
-    #     except Exception as e:
-    #         logging.error(f"Translation error for text '{text}': {str(e)}")
-    #         raise
+        # 1) detect candidates (unfiltered), then threshold & cap
+        det = await self.detect_language_multi(text, max_langs=5)
+        all_cands = det.get("candidates", [])
+        shown = [c for c in all_cands if c.get("confidence", 0.0) >= min_conf]
+        shown.sort(key=lambda x: x["confidence"], reverse=True)
+        shown = shown[:max_langs]
+
+        has_german = any(c["lang"] == "de" for c in shown)
+        non_de = [c for c in shown if c["lang"] != "de"]
+
+        # scenario classification
+        # a) only non-German (>=1) and German either absent or below threshold
+        # b) 2-3 non-German languages (no German)
+        # c) German + exactly 1 other
+        # d) German + 2 or 3 others
+        if has_german and len(non_de) == 0:
+            scenario = "c"  # degenerate: German only (treat as c with zero others)
+        elif has_german and len(non_de) == 1:
+            scenario = "c"
+        elif has_german and len(non_de) >= 2:
+            scenario = "d"
+        elif not has_german and len(non_de) == 1:
+            scenario = "a"
+        elif not has_german and len(non_de) >= 2:
+            scenario = "b"
+        else:
+            scenario = "none"  # nobody passed threshold
+
+        sections = []
+        dedup = {}
+
+        # 2) If German is confidently detected, add compact German section
+        if has_german:
+            de_c = next(c for c in shown if c["lang"] == "de")
+            sections.append({
+                "type": "german_candidate",
+                "lang": "de",
+                "language_name": de_c["name"],
+                "confidence": de_c["confidence"],
+                # compact: show the exact query as lemma; clicking triggers DB lookup by lemma
+                "lemma": self._normalize_surface(text),
+                "display_mode": "compact",   # (c1.1) compact card; user clicks to check DB
+                "cta": {"action": "lookup_in_db", "lemma": self._normalize_surface(text)}
+            })
+
+        # 3) For each non-German language shown, produce German translations
+        for c in non_de:
+            lang = c["lang"]
+            name = c["name"]
+            conf = c["confidence"]
+
+            try:
+                tx = await self.translate_to_german(text, source_language=lang)
+            except Exception as e:
+                logging.warning(f"translate_to_german failed for '{text}' [{lang}]: {e}")
+                tx = {"translations": [], "is_ambiguous": False, "source_language": lang}
+
+            translations = tx.get("translations", []) or []
+
+            # cleanup + cap senses
+            clean = []
+            seen = set()
+            for t in translations:
+                if not isinstance(t, dict):
+                    continue
+                gw = self._normalize_surface(t.get("german_word", ""))
+                if not gw or gw.lower() in seen:
+                    continue
+                seen.add(gw.lower())
+                clean.append({
+                    "german_word": gw,
+                    "context": self._normalize_surface(t.get("context", "")),
+                    "pos": (t.get("pos") or "").strip().lower() or "noun"
+                })
+                if len(clean) >= max_senses:
+                    break
+
+            has_multiple = len(clean) > 1
+            display_mode = "multiple" if has_multiple else "single"
+
+            # dedupe bucket
+            for t in clean:
+                key = t["german_word"].lower()
+                dd = dedup.setdefault(key, {"german_word": t["german_word"], "from": []})
+                dd["from"].append(lang)
+
+            # section for this language
+            sec = {
+                "type": "source_language",
+                "lang": lang,
+                "language_name": name,
+                "confidence": conf,
+                "translations": clean,
+                "has_multiple": has_multiple,
+                "display_mode": display_mode,
+            }
+            # CTAs
+            if has_multiple:
+                sec["cta"] = {
+                    "action": "pick_one_then_lookup",
+                    "lemma_candidates": [t["german_word"] for t in clean]
+                }
+            elif clean:
+                sec["cta"] = {
+                    "action": "lookup_in_db",
+                    "lemma": clean[0]["german_word"]
+                }
+            sections.append(sec)
+
+        # 4) Final JSON for UI
+        result = {
+            "query": text,
+            "threshold_applied": min_conf,
+            "scenario": scenario,                 # "a" | "b" | "c" | "d" | "none"
+            "sections": sections,                 # render these in order
+            "languages_shown": [s["lang"] for s in sections],
+            "deduped_translations": list(dedup.values()),
+        }
+
+        # If nobody passed threshold, tell the UI explicitly
+        if scenario == "none":
+            result["message"] = "No language passed confidence threshold. You can lower the threshold or try again."
+
+        return result
     async def translate_to_german(self, text: str, source_language: str = None) -> Dict[str, Any]:
         """
         Translate a single word to German with strict constraints:

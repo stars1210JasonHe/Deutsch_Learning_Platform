@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.deps import get_db, get_current_active_user
@@ -59,60 +59,60 @@ async def translate_search(
     """Translate word to German and search vocabulary database"""
     
     try:
-        # Step 1: Enhanced language detection with ambiguity check
-        language_result = await openai_service.detect_language(request.text)
+        # Step 1: Use new multi-language gate for comprehensive detection
+        gate = await openai_service.translate_ambiguous_to_german_v2(
+            text=request.text,
+            min_conf=0.90,
+            max_langs=3,
+            max_senses=5
+        )
         
-        detected_lang = language_result.get("detected_language", "unknown")
-        detected_name = language_result.get("language_name", "Unknown")
-        confidence = language_result.get("confidence", 0.0)
-        is_german = language_result.get("is_german", False)
-        is_ambiguous = language_result.get("is_ambiguous", False)
-        alternative_lang = language_result.get("alternative_language")
-        alternative_name = language_result.get("alternative_language_name")
-        german_meaning = language_result.get("german_meaning")
-        alternative_meaning = language_result.get("alternative_meaning")
-        
-        # Check if language detection failed
-        if detected_lang == "unknown" or confidence < 0.5:
-            return TranslateSearchResponse(
-                original_text=request.text,
-                detected_language=detected_lang,
-                detected_language_name=detected_name,
-                confidence=confidence,
-                error_message="Unable to detect language. Please try a different word or switch to normal search mode."
-            )
-        
-        # Step 2: Handle ambiguous words - show user choice
-        if is_ambiguous and alternative_lang and german_meaning and alternative_meaning:
+        # Convert gate response to TranslateSearchResponse format
+        if gate.get("scenario") != "none":
+            # Check for source language sections (non-German candidates)
             language_choices = []
             
-            # Add German option
-            language_choices.append(LanguageChoice(
-                language_code="de",
-                language_name="German", 
-                meaning=german_meaning,
-                action="search_german"
-            ))
+            for section in gate.get("sections", []):
+                if section.get("type") == "source_language" and section.get("candidates"):
+                    for candidate in section["candidates"]:
+                        # Add each sense as a separate language choice
+                        for sense in candidate.get("senses", []):
+                            language_choices.append(LanguageChoice(
+                                language_code=candidate["lang"],
+                                language_name=candidate["lang_display"],
+                                meaning=f"{sense['lemma']} ({sense['pos']}) - {sense['meaning']}",
+                                action="translate_from"
+                            ))
+                elif section.get("type") == "german_candidate":
+                    # Add German option
+                    language_choices.append(LanguageChoice(
+                        language_code="de",
+                        language_name="German",
+                        meaning=f"{section.get('lemma', '')} - {section.get('meaning', '')}",
+                        action="search_german"
+                    ))
             
-            # Add alternative language option
-            language_choices.append(LanguageChoice(
-                language_code=alternative_lang,
-                language_name=alternative_name or "Unknown",
-                meaning=alternative_meaning,
-                action="translate_from"
-            ))
-            
-            return TranslateSearchResponse(
-                original_text=request.text,
-                detected_language=detected_lang,
-                detected_language_name=detected_name,
-                confidence=confidence,
-                is_language_ambiguous=True,
-                language_choices=language_choices
-            )
+            if language_choices:
+                return TranslateSearchResponse(
+                    original_text=request.text,
+                    detected_language="ambiguous",
+                    detected_language_name="Multiple Languages",
+                    confidence=0.0,  # Will be overridden by individual candidate confidence
+                    is_language_ambiguous=True,
+                    language_choices=language_choices
+                )
         
-        # Step 3: Handle clear German input (skip translation)
-        if is_german or detected_lang == "de":
+        # Step 2: If no ambiguous suggestions, proceed with translation
+        # Check if only German was detected or no languages passed threshold
+        german_detected = any(
+            s.get("type") == "german_candidate" 
+            for s in gate.get("sections", [])
+        )
+        
+        if german_detected and not any(
+            s.get("type") == "source_language" 
+            for s in gate.get("sections", [])
+        ):
             search_result = await vocabulary_service.search_words(
                 db=db,
                 query=request.text,
@@ -125,7 +125,7 @@ async def translate_search(
                 original_text=request.text,
                 detected_language="de",
                 detected_language_name="German",
-                confidence=confidence,
+                confidence=1.0,
                 german_translations=[TranslationOption(
                     german_word=request.text,
                     context="already German",
@@ -135,7 +135,29 @@ async def translate_search(
                 selected_translation=request.text
             )
         
-        # Step 3: Translate to German
+        # Step 3: No confident detection - fall back to old translation method
+        # First try to detect the primary language
+        try:
+            language_result = await openai_service.detect_language(request.text)
+            detected_lang = language_result.get("detected_language", "unknown")
+            detected_name = language_result.get("language_name", "Unknown")
+            confidence = language_result.get("confidence", 0.0)
+        except:
+            detected_lang = "unknown"
+            detected_name = "Unknown"
+            confidence = 0.0
+        
+        # If detection failed completely, return error
+        if detected_lang == "unknown" or confidence < 0.5:
+            return TranslateSearchResponse(
+                original_text=request.text,
+                detected_language=detected_lang,
+                detected_language_name=detected_name,
+                confidence=confidence,
+                error_message="Unable to detect language. Please try a different word or switch to normal search mode."
+            )
+        
+        # Step 4: Translate to German
         translation_result = await openai_service.translate_to_german(
             request.text, detected_lang
         )
@@ -254,6 +276,26 @@ async def translate_search_select(
             confidence=0.0,
             error_message=f"Search failed: {str(e)}"
         )
+
+
+@router.post("/resolve-candidate", response_model=dict)
+async def resolve_candidate(
+    request: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Resolve user-selected German candidate from multi-language suggestions"""
+    german_lemma = request.get("german_lemma")
+    if not german_lemma:
+        raise HTTPException(status_code=400, detail="german_lemma is required")
+    
+    result = await vocabulary_service.resolve_candidate_and_save(
+        db=db,
+        german_lemma=german_lemma,
+        user=current_user
+    )
+    
+    return result
 
 
 @router.post("/translate-language-select", response_model=TranslateSearchResponse)
