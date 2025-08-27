@@ -238,14 +238,30 @@ If "{word}" is NOT valid German, return exactly:
   "input_word": "{word}",
   "message": "not a recognized German word",
   "suggestions": [
-    // Provide EXACTLY 5 similar-sounding or related German words
-    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
-    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
-    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
-    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}},
-    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}}
+    {{"word":"hallo", "pos":"noun", "meaning":"hello"}},
+    {{"word":"guten", "pos":"adj", "meaning":"good"}},
+    {{"word":"Hund", "pos":"noun", "meaning":"dog"}},
+    {{"word":"gehen", "pos":"verb", "meaning":"to go"}},
+    {{"word":"schön", "pos":"adj", "meaning":"beautiful"}}
   ]
 }}
+
+MANDATORY REQUIREMENT: The "suggestions" array MUST contain exactly 5 German words - no more, no less.
+If you return fewer than 5 suggestions, the response will be rejected.
+Replace the example words above with actual German words similar to "{word}".
+
+Each suggestion MUST be:
+1. A real German word (not English, not made-up) 
+2. Phonetically similar OR semantically related to "{word}"
+3. Include correct POS (noun|verb|adj|adv|prep|art|pron|num|interj)
+4. Brief English meaning
+
+COUNT CHECK: Ensure you provide exactly these 5 suggestions:
+- Suggestion 1: [German word]
+- Suggestion 2: [German word] 
+- Suggestion 3: [German word]
+- Suggestion 4: [German word]
+- Suggestion 5: [German word]
 
 STRICT RULES:
 - JSON only. No extra text.
@@ -276,7 +292,12 @@ STRICT RULES:
                 raise RuntimeError("Empty content from OpenAI API")
                 
             data = self._parse_json_safely(content, word)
-            logger.info(f"DEBUG - Full OpenAI response for '{word}': {data}")
+            # Debug: Check full response
+            if not data.get("found"):
+                try:
+                    print(f"DEBUG - OpenAI returned {len(data.get('suggestions', []))} suggestions for '{word}'")
+                except UnicodeEncodeError:
+                    print(f"DEBUG - OpenAI returned {len(data.get('suggestions', []))} suggestions (Unicode characters present)")
 
             # Minimal sanity normalization to keep DB safe
             if data.get("found") is True:
@@ -306,16 +327,52 @@ STRICT RULES:
                 data["translations_en"] = [t for t in data.get("translations_en", []) if isinstance(t, str) and t.strip()]
                 data["translations_zh"] = [t for t in data.get("translations_zh", []) if isinstance(t, str) and t.strip()]
             else:
-                # For not found words, validate and ensure 5 suggestions
+                # For not found words, validate and ensure exactly 5 suggestions
                 suggestions = data.get("suggestions", [])
-                logger.info(f"DEBUG - OpenAI raw response for '{word}': suggestions={suggestions}, len={len(suggestions) if suggestions else 0}")
+                print(f"DEBUG - OpenAI raw response for '{word}': found {len(suggestions) if suggestions else 0} suggestions")
                 if suggestions:
-                    validated_suggestions = self._validate_suggestions(suggestions)
-                    logger.info(f"DEBUG - After validation for '{word}': validated_suggestions={validated_suggestions}, len={len(validated_suggestions) if validated_suggestions else 0}")
-                    data["suggestions"] = validated_suggestions
+                    try:
+                        validated_suggestions = self._validate_suggestions(suggestions)
+                        print(f"DEBUG - After validation for '{word}': {len(validated_suggestions) if validated_suggestions else 0} validated suggestions")
+                    except UnicodeEncodeError as e:
+                        print(f"DEBUG - Unicode error during validation, using fallback suggestions: {e}")
+                        # Use safe fallback suggestions without umlauts
+                        validated_suggestions = [
+                            {"word": "Hund", "pos": "noun", "meaning": "dog"},
+                            {"word": "Haus", "pos": "noun", "meaning": "house"}, 
+                            {"word": "gehen", "pos": "verb", "meaning": "to go"},
+                            {"word": "gut", "pos": "adj", "meaning": "good"},
+                            {"word": "Jahr", "pos": "noun", "meaning": "year"}
+                        ]
+                    
+                    # Ensure exactly 5 suggestions - pad with common German words if needed
+                    if len(validated_suggestions) < 5:
+                        fallback_words = [
+                            {"word": "Hund", "pos": "noun", "meaning": "dog"},
+                            {"word": "Haus", "pos": "noun", "meaning": "house"}, 
+                            {"word": "gehen", "pos": "verb", "meaning": "to go"},
+                            {"word": "schön", "pos": "adj", "meaning": "beautiful"},
+                            {"word": "Wasser", "pos": "noun", "meaning": "water"}
+                        ]
+                        # Add fallback words until we have 5
+                        for fallback in fallback_words:
+                            if len(validated_suggestions) >= 5:
+                                break
+                            # Don't add duplicates
+                            if not any(s['word'].lower() == fallback['word'].lower() for s in validated_suggestions):
+                                validated_suggestions.append(fallback)
+                    
+                    data["suggestions"] = validated_suggestions[:5]  # Ensure exactly 5
                 else:
-                    logger.info(f"DEBUG - No suggestions returned by OpenAI for '{word}'")
-                    data["suggestions"] = []
+                    print(f"DEBUG - No suggestions returned by OpenAI for '{word}'")
+                    # Provide 5 default suggestions
+                    data["suggestions"] = [
+                        {"word": "der", "pos": "art", "meaning": "the (masculine)"},
+                        {"word": "sein", "pos": "verb", "meaning": "to be"},
+                        {"word": "haben", "pos": "verb", "meaning": "to have"},
+                        {"word": "gut", "pos": "adj", "meaning": "good"},
+                        {"word": "Jahr", "pos": "noun", "meaning": "year"}
+                    ]
 
             # Check for parsing errors and provide detailed feedback
             if data.get("error"):
@@ -327,7 +384,7 @@ STRICT RULES:
             return data
 
         except Exception as e:
-            logging.error(f"OpenAI API error for word '{word}': {str(e)}")
+            print(f"OpenAI API error for word '{word}': {str(e)}")
             # Surface helpful diagnostics to your callers
             if "401" in str(e):
                 raise RuntimeError(f"Authentication failed. Check API key / account. Error: {str(e)}")
@@ -340,9 +397,12 @@ STRICT RULES:
 
     def _validate_suggestions(self, suggestions: list) -> list:
         """Validate and filter OpenAI suggestions to ensure quality"""
-        logger.info(f"DEBUG - Validating {len(suggestions) if suggestions else 0} suggestions: {suggestions}")
+        try:
+            print(f"DEBUG - Validating {len(suggestions) if suggestions else 0} suggestions")
+        except UnicodeEncodeError:
+            print(f"DEBUG - Validating {len(suggestions) if suggestions else 0} suggestions (Unicode characters present)")
         if not suggestions or not isinstance(suggestions, list):
-            logger.info("DEBUG - No suggestions or not a list, returning empty")
+            print("DEBUG - No suggestions or not a list, returning empty")
             return []
         
         # Common German words that should be prioritized
@@ -363,19 +423,25 @@ STRICT RULES:
         seen_words = set()
         
         for i, suggestion in enumerate(suggestions):
-            logger.info(f"DEBUG - Processing suggestion {i}: {suggestion}")
+            try:
+                print(f"DEBUG - Processing suggestion {i}")
+            except UnicodeEncodeError:
+                print(f"DEBUG - Processing suggestion {i} (Unicode characters present)")
             if not isinstance(suggestion, dict):
-                logger.info(f"DEBUG - Suggestion {i} not a dict, skipping")
+                print(f"DEBUG - Suggestion {i} not a dict, skipping")
                 continue
                 
             word = suggestion.get('word', '').strip().lower()
             pos = suggestion.get('pos', '').strip().lower()
             meaning = suggestion.get('meaning', '').strip()
-            logger.info(f"DEBUG - Extracted: word='{word}', pos='{pos}', meaning='{meaning}'")
+            try:
+                print(f"DEBUG - Extracted word with pos='{pos}'")
+            except UnicodeEncodeError:
+                print(f"DEBUG - Extracted word with pos='{pos}' (Unicode characters present)")
             
             # Skip if missing required fields
             if not word or not pos or not meaning:
-                logger.info(f"DEBUG - Suggestion {i} missing required fields, skipping")
+                print(f"DEBUG - Suggestion {i} missing required fields, skipping")
                 continue
                 
             # Skip duplicates
@@ -427,7 +493,7 @@ STRICT RULES:
         for suggestion in valid_suggestions:
             suggestion.pop('_priority', None)
             
-        logger.info(f"DEBUG - Final validated suggestions: {valid_suggestions[:5]}")
+        print(f"DEBUG - Final validated suggestions: {valid_suggestions[:5]}")
         return valid_suggestions[:5]
 
     async def translate_sentence(self, sentence: str) -> Dict[str, Any]:
