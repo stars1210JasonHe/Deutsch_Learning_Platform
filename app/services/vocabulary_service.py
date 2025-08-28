@@ -158,7 +158,8 @@ class VocabularyService:
         self, 
         db: Session, 
         lemma: str, 
-        user: User
+        user: User,
+        skip_language_gate: bool = False
     ) -> Dict[str, Any]:
         """
         统一的单词查询接口：
@@ -192,22 +193,24 @@ class VocabularyService:
             return await self._format_word_data(word, from_database=False, openai_data=fallback_data)
 
         # 3. language gate (scenarios a/b/c/d with threshold 0.90)
-        try:
-            gate = await self._language_gate(lemma)
-        except Exception as e:
-            gate = {"scenario": "none", "error": str(e), "sections": []}
+        # Skip language gate for regular word search (non-translate mode)
+        if not skip_language_gate:
+            try:
+                gate = await self._language_gate(lemma)
+            except Exception as e:
+                gate = {"scenario": "none", "error": str(e), "sections": []}
 
-        if self._gate_wants_ui_stop(gate):
-            # Hand back suggestions for UI to render, do NOT write to DB yet.
-            await self._log_search_history(db, user, lemma, "lang_gate", from_database=False)
-            return {
-                "found": False,
-                "original": lemma,
-                "flow": "multi_lang_suggestions",
-                "threshold": self.LANGUAGE_CONF_THRESHOLD,
-                "ui_suggestions": gate,   # render `sections`, use `cta` fields to pick/lookup
-                "source": "lang_gate"
-            }
+            if self._gate_wants_ui_stop(gate):
+                # Hand back suggestions for UI to render, do NOT write to DB yet.
+                await self._log_search_history(db, user, lemma, "lang_gate", from_database=False)
+                return {
+                    "found": False,
+                    "original": lemma,
+                    "flow": "multi_lang_suggestions",
+                    "threshold": self.LANGUAGE_CONF_THRESHOLD,
+                    "ui_suggestions": gate,   # render `sections`, use `cta` fields to pick/lookup
+                    "source": "lang_gate"
+                }
 
         # 4. Not stopped by the gate → treat as German and analyze+save
         try:
@@ -552,33 +555,35 @@ class VocabularyService:
             particle_type = None
             interj_register = None
             
-            if word.pos == "adj":
+            pos_tags = set(tag.strip().lower() for tag in word.pos.split('|'))
+            
+            if "adj" in pos_tags:
                 degree_forms = self._extract_degree_forms(word.forms)
-            elif word.pos == "prep" or word.pos == "preposition":
+            elif "prep" in pos_tags or "preposition" in pos_tags:
                 governance = self._extract_governance(word.forms)
-            elif word.pos == "adv":
+            elif "adv" in pos_tags:
                 adv_type = self._extract_adverb_type(word.forms)
-            elif word.pos == "conj":
+            elif "conj" in pos_tags:
                 conj_type = self._extract_conjunction_type(word.forms)
-            elif word.pos == "pron":
+            elif "pron" in pos_tags:
                 pron_info = self._extract_pronoun_info(word.forms)
-            elif word.pos == "det":
+            elif "det" in pos_tags:
                 det_type = self._extract_determiner_type(word.forms)
-            elif word.pos in ["num", "numeral"]:
+            elif "num" in pos_tags or "numeral" in pos_tags:
                 num_info = self._extract_numeral_info(word.forms)
-            elif word.pos == "particle":
+            elif "particle" in pos_tags:
                 particle_type = self._extract_particle_type(word.forms)
-            elif word.pos == "interj":
+            elif "interj" in pos_tags:
                 interj_register = self._extract_interjection_register(word.forms)
             
             return {
                 "found": True,  # 重要：前端需要这个字段来显示词汇分析
                 "original": word.lemma,
                 "pos": word.pos,
-                "article": self._extract_article_from_forms(word.forms) if word.pos == "noun" else None,
-                "plural": self._extract_plural_from_forms(word.forms) if word.pos == "noun" else None,
-                "tables": self._format_verb_tables(word.forms) if word.pos == "verb" and word.forms else None,
-                "verb_props": self._format_verb_props(word.verb_props) if word.pos == "verb" and word.verb_props else None,
+                "article": self._extract_article_from_forms(word.forms) if "noun" in pos_tags else None,
+                "plural": self._extract_plural_from_forms(word.forms) if "noun" in pos_tags else None,
+                "tables": self._format_verb_tables(word.forms) if ("verb" in word.pos.lower() and "adverb" not in word.pos.lower()) and word.forms else None,
+                "verb_props": self._format_verb_props(word.verb_props) if ("verb" in word.pos.lower() and "adverb" not in word.pos.lower()) and word.verb_props else None,
                 "degree_forms": degree_forms,
                 "governance": governance,
                 "adv_type": adv_type,

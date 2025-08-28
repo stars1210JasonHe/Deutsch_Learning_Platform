@@ -254,9 +254,15 @@
         </div>
 
         <!-- Verb Properties -->
-        <div v-if="result.verb_props && result.pos === 'verb'" class="bg-green-50 rounded-lg p-4">
-          <h4 class="font-medium text-green-900 mb-2">🔧 Verb Properties</h4>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+        <div v-if="result.verb_props && (result.pos && result.pos.toLowerCase().includes('verb'))" class="bg-green-50 rounded-lg p-4">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-green-900">🔧 Verb Properties</h4>
+            <button @click="showVerbProps = !showVerbProps" class="text-green-700 hover:text-green-900 transition-colors">
+              <span v-if="showVerbProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showVerbProps" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
             <!-- Separability -->
             <div v-if="result.verb_props.separable" class="flex items-center space-x-2">
               <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-medium">
@@ -325,8 +331,14 @@
         
         <!-- Adjective Properties -->
         <div v-if="result.degree_forms && result.pos === 'adj'" class="bg-yellow-50 rounded-lg p-4">
-          <h4 class="font-medium text-yellow-900 mb-2">📐 Adjective Forms</h4>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-yellow-900">📐 Adjective Forms</h4>
+            <button @click="showAdjProps = !showAdjProps" class="text-yellow-700 hover:text-yellow-900 transition-colors">
+              <span v-if="showAdjProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showAdjProps" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div v-if="result.degree_forms.comparative">
               <span class="text-yellow-600 font-medium">Comparative:</span>
               <span class="ml-1 font-medium">{{ result.degree_forms.comparative }}</span>
@@ -340,8 +352,14 @@
         
         <!-- Preposition Properties -->
         <div v-if="result.governance && (result.pos === 'prep' || result.pos === 'preposition' || result.upos === 'ADP')" class="bg-cyan-50 rounded-lg p-4">
-          <h4 class="font-medium text-cyan-900 mb-2">⚖️ Preposition Properties</h4>
-          <div class="text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-cyan-900">⚖️ Preposition Properties</h4>
+            <button @click="showPrepProps = !showPrepProps" class="text-cyan-700 hover:text-cyan-900 transition-colors">
+              <span v-if="showPrepProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showPrepProps" class="text-sm">
             <div>
               <span class="text-cyan-600 font-medium">Case Governance:</span>
               <span class="ml-1 font-medium">{{ result.governance }}</span>
@@ -351,8 +369,14 @@
         
         <!-- Adverb Properties -->
         <div v-if="result.adv_type && result.pos === 'adv'" class="bg-lime-50 rounded-lg p-4">
-          <h4 class="font-medium text-lime-900 mb-2">🎯 Adverb Properties</h4>
-          <div class="text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-lime-900">🎯 Adverb Properties</h4>
+            <button @click="showAdvProps = !showAdvProps" class="text-lime-700 hover:text-lime-900 transition-colors">
+              <span v-if="showAdvProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showAdvProps" class="text-sm">
             <div>
               <span class="text-lime-600 font-medium">Type:</span>
               <span class="ml-1 font-medium capitalize">{{ result.adv_type }}</span>
@@ -362,8 +386,14 @@
         
         <!-- Conjunction Properties -->
         <div v-if="result.conj_type && result.pos === 'conj'" class="bg-purple-50 rounded-lg p-4">
-          <h4 class="font-medium text-purple-900 mb-2">🔗 Conjunction Properties</h4>
-          <div class="text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-purple-900">🔗 Conjunction Properties</h4>
+            <button @click="showConjProps = !showConjProps" class="text-purple-700 hover:text-purple-900 transition-colors">
+              <span v-if="showConjProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showConjProps" class="text-sm">
             <div>
               <span class="text-purple-600 font-medium">Type:</span>
               <span class="ml-1 font-medium capitalize">{{ result.conj_type }}</span>
@@ -373,8 +403,14 @@
         
         <!-- Pronoun Properties -->
         <div v-if="result.pron_info && result.pos === 'pron'" class="bg-pink-50 rounded-lg p-4">
-          <h4 class="font-medium text-pink-900 mb-2">👤 Pronoun Properties</h4>
-          <div class="text-sm space-y-2">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-pink-900">👤 Pronoun Properties</h4>
+            <button @click="showPronProps = !showPronProps" class="text-pink-700 hover:text-pink-900 transition-colors">
+              <span v-if="showPronProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showPronProps" class="text-sm space-y-2">
             <div v-if="result.pron_info.type">
               <span class="text-pink-600 font-medium">Type:</span>
               <span class="ml-1 font-medium capitalize">{{ result.pron_info.type }}</span>
@@ -393,8 +429,14 @@
         
         <!-- Determiner Properties -->
         <div v-if="result.det_type && result.pos === 'det'" class="bg-indigo-50 rounded-lg p-4">
-          <h4 class="font-medium text-indigo-900 mb-2">📍 Determiner Properties</h4>
-          <div class="text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-indigo-900">📍 Determiner Properties</h4>
+            <button @click="showDetProps = !showDetProps" class="text-indigo-700 hover:text-indigo-900 transition-colors">
+              <span v-if="showDetProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showDetProps" class="text-sm">
             <div>
               <span class="text-indigo-600 font-medium">Type:</span>
               <span class="ml-1 font-medium capitalize">{{ result.det_type }}</span>
@@ -404,8 +446,14 @@
         
         <!-- Numeral Properties -->
         <div v-if="result.num_info && (result.pos === 'num' || result.pos === 'numeral')" class="bg-orange-50 rounded-lg p-4">
-          <h4 class="font-medium text-orange-900 mb-2">🔢 Numeral Properties</h4>
-          <div class="text-sm space-y-1">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-orange-900">🔢 Numeral Properties</h4>
+            <button @click="showNumProps = !showNumProps" class="text-orange-700 hover:text-orange-900 transition-colors">
+              <span v-if="showNumProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showNumProps" class="text-sm space-y-1">
             <div v-if="result.num_info.type">
               <span class="text-orange-600 font-medium">Type:</span>
               <span class="ml-1 font-medium capitalize">{{ result.num_info.type }}</span>
@@ -419,8 +467,14 @@
         
         <!-- Particle Properties -->
         <div v-if="result.particle_type && result.pos === 'particle'" class="bg-teal-50 rounded-lg p-4">
-          <h4 class="font-medium text-teal-900 mb-2">✨ Particle Properties</h4>
-          <div class="text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-teal-900">✨ Particle Properties</h4>
+            <button @click="showParticleProps = !showParticleProps" class="text-teal-700 hover:text-teal-900 transition-colors">
+              <span v-if="showParticleProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showParticleProps" class="text-sm">
             <div>
               <span class="text-teal-600 font-medium">Type:</span>
               <span class="ml-1 font-medium capitalize">{{ result.particle_type }}</span>
@@ -430,8 +484,14 @@
         
         <!-- Interjection Properties -->
         <div v-if="result.interj_register && result.pos === 'interj'" class="bg-gray-50 rounded-lg p-4">
-          <h4 class="font-medium text-gray-900 mb-2">❗ Interjection Properties</h4>
-          <div class="text-sm">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="font-medium text-gray-900">❗ Interjection Properties</h4>
+            <button @click="showInterjProps = !showInterjProps" class="text-gray-700 hover:text-gray-900 transition-colors">
+              <span v-if="showInterjProps">▲</span>
+              <span v-else>▼</span>
+            </button>
+          </div>
+          <div v-if="showInterjProps" class="text-sm">
             <div>
               <span class="text-gray-600 font-medium">Register:</span>
               <span class="ml-1 font-medium capitalize">{{ result.interj_register }}</span>
@@ -472,32 +532,29 @@
           </div>
         </div>
 
-        <!-- Additional Translations -->
-        <div v-if="showAdditionalTranslations" class="grid md:grid-cols-2 gap-6">
-          <div v-if="result.translations_en && result.translations_en.length > 1">
-            <h3 class="font-semibold text-gray-700 mb-2">More English Translations</h3>
-            <ul class="space-y-1">
-              <li v-for="translation in result.translations_en.slice(1)" :key="translation" 
-                  class="text-gray-600">
-                • {{ translation }}
-              </li>
-            </ul>
+      </div>
+
+      <!-- Example Sentence -->
+      <div v-if="result.example" class="bg-gray-50 rounded-lg p-4">
+        <h3 class="font-semibold text-gray-700 mb-3">Example</h3>
+        <div class="space-y-2">
+          <div class="flex items-center space-x-2">
+            <p class="text-gray-800"><strong>DE:</strong> {{ result.example.de }}</p>
+            <SpeechButton :text="result.example.de" size="sm" />
           </div>
-          
-          <div v-if="result.translations_zh && result.translations_zh.length > 1">
-            <h3 class="font-semibold text-gray-700 mb-2">更多中文翻译</h3>
-            <ul class="space-y-1">
-              <li v-for="translation in result.translations_zh.slice(1)" :key="translation" 
-                  class="text-gray-600">
-                • {{ translation }}
-              </li>
-            </ul>
+          <div class="flex items-center space-x-2">
+            <p class="text-gray-600"><strong>EN:</strong> {{ result.example.en }}</p>
+            <SpeechButton v-if="result.example.en" :text="result.example.en" size="sm" lang="en-US" />
+          </div>
+          <div v-if="result.example.zh" class="flex items-center space-x-2">
+            <p class="text-gray-600"><strong>ZH:</strong> {{ result.example.zh }}</p>
+            <SpeechButton :text="result.example.zh" size="sm" lang="zh-CN" />
           </div>
         </div>
       </div>
       
       <!-- Conjugation Tables (for verbs) - Dynamic Display -->
-      <div v-if="result.tables && (result.pos === 'verb' || result.upos === 'VERB')" class="space-y-4">
+<div v-if="result.tables && ((result.pos && result.pos.toLowerCase().includes('verb')) || result.upos === 'VERB')" class="space-y-4">
         <h3 class="font-semibold text-gray-700">Conjugation</h3>
         
         <!-- Dynamic Tenses Grid -->
@@ -523,24 +580,6 @@
 
       </div>
       
-      <!-- Example Sentence -->
-      <div v-if="result.example" class="bg-gray-50 rounded-lg p-4">
-        <h3 class="font-semibold text-gray-700 mb-3">Example</h3>
-        <div class="space-y-2">
-          <div class="flex items-center space-x-2">
-            <p class="text-gray-800"><strong>DE:</strong> {{ result.example.de }}</p>
-            <SpeechButton :text="result.example.de" size="sm" />
-          </div>
-          <div class="flex items-center space-x-2">
-            <p class="text-gray-600"><strong>EN:</strong> {{ result.example.en }}</p>
-            <SpeechButton v-if="result.example.en" :text="result.example.en" size="sm" lang="en-US" />
-          </div>
-          <div v-if="result.example.zh" class="flex items-center space-x-2">
-            <p class="text-gray-600"><strong>ZH:</strong> {{ result.example.zh }}</p>
-            <SpeechButton :text="result.example.zh" size="sm" lang="zh-CN" />
-          </div>
-        </div>
-      </div>
     </div>
     </div>
 
@@ -585,6 +624,18 @@ const { getPosDisplay, getPosClass, isVerbType } = usePartOfSpeech()
 const showChatModal = ref(false)
 const showImageModal = ref(false)
 
+// Collapsible sections state
+const showVerbProps = ref(false)
+const showAdjProps = ref(false)
+const showPrepProps = ref(false)
+const showAdvProps = ref(false)
+const showConjProps = ref(false)
+const showPronProps = ref(false)
+const showDetProps = ref(false)
+const showNumProps = ref(false)
+const showParticleProps = ref(false)
+const showInterjProps = ref(false)
+
 // Modal functions
 const openChatModal = () => {
   showChatModal.value = true
@@ -608,10 +659,6 @@ const hasTranslations = computed(() => {
          (props.result.translations_zh && props.result.translations_zh.length > 0)
 })
 
-const showAdditionalTranslations = computed(() => {
-  return (props.result.translations_en && props.result.translations_en.length > 1) ||
-         (props.result.translations_zh && props.result.translations_zh.length > 1)
-})
 
 const selectSuggestion = async (word: string) => {
   try {

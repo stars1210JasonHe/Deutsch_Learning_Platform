@@ -6,8 +6,6 @@ from typing import Dict, Any, Optional
 from openai import AsyncOpenAI
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
-
 
 class OpenAIService:
     _EXONYM_TO_DE = {
@@ -147,12 +145,17 @@ class OpenAIService:
         
         return '\n'.join(fixed_lines)
 
-    async def analyze_word(self, word: str) -> Dict[str, Any]:
+    async def analyze_word(self, word: str, response_format: str = "suggestions") -> Dict[str, Any]:
         """
         Analyze a single German word and return JSON shaped exactly for your DB:
         - Normalize everything into `word_forms`: [{feature_key, feature_value, form}]
         - For verbs also return `verb_props` matching your VerbProps model
         - Include translations + one example for UX
+
+        Args:
+            word: The word to analyze
+            response_format: "suggestions" for 5 relevant words (flat array) or 
+                           "ui_suggestions" for translation UI format (sections)
 
         IMPORTANT (schema contract):
         - Persons: ich, du, er_sie_es, wir, ihr, sie_Sie
@@ -238,11 +241,7 @@ If "{word}" is NOT valid German, return exactly:
   "input_word": "{word}",
   "message": "not a recognized German word",
   "suggestions": [
-    {{"word":"hallo", "pos":"noun", "meaning":"hello"}},
-    {{"word":"guten", "pos":"adj", "meaning":"good"}},
-    {{"word":"Hund", "pos":"noun", "meaning":"dog"}},
-    {{"word":"gehen", "pos":"verb", "meaning":"to go"}},
-    {{"word":"schön", "pos":"adj", "meaning":"beautiful"}}
+    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}}
   ]
 }}
 
@@ -362,17 +361,44 @@ STRICT RULES:
                             if not any(s['word'].lower() == fallback['word'].lower() for s in validated_suggestions):
                                 validated_suggestions.append(fallback)
                     
-                    data["suggestions"] = validated_suggestions[:5]  # Ensure exactly 5
+                    final_suggestions = validated_suggestions[:5]  # Ensure exactly 5
                 else:
                     print(f"DEBUG - No suggestions returned by OpenAI for '{word}'")
                     # Provide 5 default suggestions
-                    data["suggestions"] = [
+                    final_suggestions = [
                         {"word": "der", "pos": "art", "meaning": "the (masculine)"},
                         {"word": "sein", "pos": "verb", "meaning": "to be"},
                         {"word": "haben", "pos": "verb", "meaning": "to have"},
                         {"word": "gut", "pos": "adj", "meaning": "good"},
                         {"word": "Jahr", "pos": "noun", "meaning": "year"}
                     ]
+
+                # Format response based on requested format
+                if response_format == "ui_suggestions":
+                    # Translation UI format (complex structure with sections)
+                    data["ui_suggestions"] = {
+                        "query": word,
+                        "threshold_applied": 0.0,  # Not applicable for word analysis
+                        "scenario": "not_found",
+                        "sections": [
+                            {
+                                "type": "relevant_suggestions",
+                                "suggestions": final_suggestions,
+                                "display_mode": "multiple",
+                                "cta": {
+                                    "action": "pick_one_then_lookup",
+                                    "lemma_candidates": [s["word"] for s in final_suggestions]
+                                }
+                            }
+                        ],
+                        "languages_shown": [],
+                        "deduped_translations": [{"german_word": s["word"], "from": ["suggestions"]} for s in final_suggestions]
+                    }
+                    # Remove the flat suggestions array for ui_suggestions format
+                    data.pop("suggestions", None)
+                else:
+                    # Default: flat suggestions array format (for regular word search)
+                    data["suggestions"] = final_suggestions
 
             # Check for parsing errors and provide detailed feedback
             if data.get("error"):

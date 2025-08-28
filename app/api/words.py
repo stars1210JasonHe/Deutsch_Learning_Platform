@@ -44,7 +44,8 @@ async def get_word_details(
     result = await vocabulary_service.get_or_create_word(
         db=db,
         lemma=lemma,
-        user=current_user
+        user=current_user,
+        skip_language_gate=True  # Skip language gate for regular word search (non-translate mode)
     )
     
     return result

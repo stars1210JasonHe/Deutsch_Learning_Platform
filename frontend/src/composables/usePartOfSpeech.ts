@@ -70,30 +70,30 @@ export const usePartOfSpeech = () => {
     if (!pos) return 'bg-gray-100 text-gray-800'
     
     const posClasses: { [key: string]: string } = {
-      // Verb types - different shades to distinguish subtypes
+      // All POS types use green color scheme for consistency
       'verb': 'bg-green-100 text-green-800',
-      'vt': 'bg-green-100 text-green-800',          // Transitive - green
-      'vi': 'bg-blue-100 text-blue-800',           // Intransitive - blue
-      'vr': 'bg-teal-100 text-teal-800',           // Reflexive - teal
-      'aux': 'bg-indigo-100 text-indigo-800',      // Auxiliary - indigo
-      'modal': 'bg-purple-100 text-purple-800',    // Modal - purple
-      'vi_impers': 'bg-blue-50 text-blue-700',     // Impersonal intransitive - light blue
-      'vt_impers': 'bg-green-50 text-green-700',   // Impersonal transitive - light green
-      'vi_prep_obj': 'bg-cyan-100 text-cyan-800',  // Intransitive + prep - cyan
-      'vt_prep_obj': 'bg-emerald-100 text-emerald-800', // Transitive + prep - emerald
+      'vt': 'bg-green-100 text-green-800',
+      'vi': 'bg-green-100 text-green-800',
+      'vr': 'bg-green-100 text-green-800',
+      'aux': 'bg-green-100 text-green-800',
+      'modal': 'bg-green-100 text-green-800',
+      'vi_impers': 'bg-green-100 text-green-800',
+      'vt_impers': 'bg-green-100 text-green-800',
+      'vi_prep_obj': 'bg-green-100 text-green-800',
+      'vt_prep_obj': 'bg-green-100 text-green-800',
       
-      // Other POS types - distinct colors
-      'noun': 'bg-red-100 text-red-800',
-      'adj': 'bg-yellow-100 text-yellow-800',
-      'adv': 'bg-orange-100 text-orange-800',
-      'prep': 'bg-pink-100 text-pink-800',
-      'conj': 'bg-amber-100 text-amber-800',
-      'pron': 'bg-lime-100 text-lime-800',
-      'det': 'bg-violet-100 text-violet-800',
-      'art': 'bg-rose-100 text-rose-800',
-      'num': 'bg-slate-100 text-slate-800',
-      'particle': 'bg-stone-100 text-stone-800',
-      'interj': 'bg-zinc-100 text-zinc-800'
+      // Other POS types also use green
+      'noun': 'bg-green-100 text-green-800',
+      'adj': 'bg-green-100 text-green-800',
+      'adv': 'bg-green-100 text-green-800',
+      'prep': 'bg-green-100 text-green-800',
+      'conj': 'bg-green-100 text-green-800',
+      'pron': 'bg-green-100 text-green-800',
+      'det': 'bg-green-100 text-green-800',
+      'art': 'bg-green-100 text-green-800',
+      'num': 'bg-green-100 text-green-800',
+      'particle': 'bg-green-100 text-green-800',
+      'interj': 'bg-green-100 text-green-800'
     }
     
     return posClasses[pos.toLowerCase()] || 'bg-gray-100 text-gray-800'
