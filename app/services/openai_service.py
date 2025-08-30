@@ -192,7 +192,7 @@ If the word is VALID German (lemma or inflected form), produce:
   "found": true,
   "input_word": "{word}",
   "lemma": "base lemma as used in dictionaries (preserve German capitalization rules)",
-  "pos": "one of: noun|verb|vt|vi|vr|aux|modal|adj|adv|prep|det|art|pron|conj|interj|num|vi_impers|vt_impers|vi_prep_obj|vt_prep_obj",
+  "pos": "one or more of: noun|verb|vt|vi|vr|aux|modal|adj|adv|prep|det|art|pron|conj|interj|num|vi_impers|vt_impers|vi_prep_obj|vt_prep_obj",
 
   "word_forms": [
     // VERBS: encode ALL available cells as tense+person

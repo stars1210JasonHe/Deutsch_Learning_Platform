@@ -732,14 +732,16 @@ class VocabularyService:
         return None
     
     def _extract_degree_forms(self, forms: List[WordForm]) -> Optional[Dict[str, str]]:
-        """Extract comparative and superlative forms for adjectives"""
+        """Extract positive, comparative, and superlative forms for adjectives"""
         if not forms:
             return None
         
         degree_forms = {}
         for form in forms:
             if form.feature_key == "degree":
-                if form.feature_value == "comparative":
+                if form.feature_value == "positive":
+                    degree_forms["positive"] = form.form
+                elif form.feature_value == "comparative":
                     degree_forms["comparative"] = form.form
                 elif form.feature_value == "superlative":
                     degree_forms["superlative"] = form.form

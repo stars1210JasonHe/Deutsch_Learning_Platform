@@ -93,8 +93,10 @@ export const useSearchStore = defineStore('search', () => {
   const analyzeWord = async (word: string) => {
     isLoading.value = true
     try {
-      // Use direct word lookup endpoint that creates missing words via OpenAI
-      const response = await axios.get(`/api/words/${encodeURIComponent(word)}`)
+      // Use translate endpoint that supports multiple choices
+      const response = await axios.post('/api/translate/word', {
+        input: word
+      })
       lastWordResult.value = response.data
       return response.data
     } catch (error: any) {
