@@ -27,6 +27,7 @@ dependencies = [
     "email-validator>=2.2.0",
     "requests>=2.32.4",
     "pypdf2>=3.0.1",
+    "pywin32>=311",
 ]
 
 [project.optional-dependencies]
