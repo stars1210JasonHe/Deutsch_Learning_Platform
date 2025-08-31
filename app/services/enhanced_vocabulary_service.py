@@ -487,8 +487,8 @@ class EnhancedVocabularyService(VocabularyService):
                 } if any(word_data.get(k) for k in ['gen_sg', 'plural', 'declension_class']) else None
             })
         
-        # 动词属性
-        elif upos == 'VERB':
+        # 动词属性 (check if VERB is in upos for multi-POS words)
+        elif upos and 'VERB' in upos:
             result.update({
                 "verb_props": {
                     "separable": bool(word_data.get('separable')),
@@ -545,7 +545,7 @@ class EnhancedVocabularyService(VocabularyService):
         }
         
         # Get verb properties if it's a verb
-        if word.verb_props and (word.pos == 'verb' or word.pos == 'VERB'):
+        if word.verb_props and word.pos and 'verb' in word.pos.lower():
             word_data.update({
                 'separable': word.verb_props.separable,
                 'prefix': word.verb_props.prefix,
