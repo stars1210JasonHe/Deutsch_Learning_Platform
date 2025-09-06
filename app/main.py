@@ -4,10 +4,10 @@ from app.core.config import settings
 from app.core.security_middleware import SecurityHeadersMiddleware, RateLimitMiddleware
 from app.db.session import engine
 from app.db.base import Base
-from app.api import auth, words, translate, history, exam, srs, favorites, audio, chat, images
+from app.api import auth, words, translate, history, exam, srs, favorites, audio, chat, images, feedback
 
 # Import all models to ensure they are registered with SQLAlchemy
-from app.models import user, word, search, exam as exam_models
+from app.models import user, word, search, exam as exam_models, feedback as feedback_models
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -59,6 +59,9 @@ app.include_router(audio.router, tags=["Audio System"])
 # Chat and image generation system
 app.include_router(chat.router, prefix="/api", tags=["Chat System"])
 app.include_router(images.router, prefix="/api", tags=["Image Generation"])
+
+# Feedback system
+app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 
 
 @app.get("/")

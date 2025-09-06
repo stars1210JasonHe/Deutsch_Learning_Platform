@@ -27,6 +27,7 @@ A production-ready German learning platform with intelligent translation, multi-
 - **Interactive Exams** - AI-generated questions with auto-grading
 - **Favorites & Progress** - Personal vocabulary tracking
 - **Search History** - Review past learning sessions
+- **User Feedback System** - Report incorrect word data with AI-powered corrections
 
 ### 🔒 Production Security
 - **JWT Authentication** - Secure tokens with 90-day refresh cycles
@@ -130,7 +131,8 @@ LanguageLearning/
 │   │   ├── words.py        # Translation & search system
 │   │   ├── chat.py         # AI chat with quick tips
 │   │   ├── auth.py         # JWT authentication
-│   │   └── images.py       # DALL-E integration
+│   │   ├── images.py       # DALL-E integration
+│   │   └── feedback.py     # User feedback system
 │   ├── services/           # Core business logic
 │   │   ├── openai_service.py      # AI integration hub
 │   │   ├── vocabulary_service.py  # Word management
@@ -140,12 +142,15 @@ LanguageLearning/
 ├── frontend/               # Vue 3 TypeScript Frontend
 │   ├── src/
 │   │   ├── views/          # Main pages (Home, Dashboard, etc.)
-│   │   ├── components/     # UI components (WordResult, ChatModal)
+│   │   ├── components/     # UI components (WordResult, FeedbackModal)
 │   │   ├── stores/         # Pinia state management
 │   │   └── composables/    # Reusable Vue logic
 ├── scripts/                # Production vocabulary tools
+│   ├── samples/            # Sample data generation scripts
+│   ├── process_feedback_with_openai.py  # Automated feedback processing
+│   └── send_email.py       # Email notification system
 ├── tests/                  # Comprehensive test suite
-├── MD/                     # Organized documentation
+├── docs/                   # Organized documentation
 │   ├── deployment/         # Docker, NAS deployment guides
 │   ├── development/        # Technical guides & debugging
 │   └── security/           # Security implementation docs
@@ -169,6 +174,10 @@ uv run python scripts/excel_vocabulary_importer.py file.xlsx
 # Database operations
 uv run python scripts/vocabulary_manager.py --stats  # View database statistics
 uv run python scripts/vocabulary_manager.py --search "word"  # Search database
+
+# Feedback system management
+uv run python scripts/process_feedback_with_openai.py  # Process pending feedback with AI
+uv run python check_feedback.py  # View feedback statistics and status
 ```
 
 ### Frontend Development
@@ -240,6 +249,10 @@ ADDITIONAL_ALLOWED_HOSTS=http://10.0.0.100:8000,https://nas.local:8000
 - `GET /api/favorites` - Saved vocabulary
 - `GET /api/search/history` - Learning session history
 
+### Feedback System
+- `POST /api/feedback/word/{lemma_id}` - Submit word feedback
+- `GET /api/feedback/word/{lemma_id}` - Retrieve word feedback
+
 ## 🧪 Testing & Quality
 
 ### Test Coverage
@@ -285,13 +298,14 @@ npm run test
 ### Debug Resources
 - **API Documentation**: http://localhost:8000/docs
 - **CLAUDE.md**: Comprehensive development guide
-- **MD/development/**: Technical debugging guides
+- **docs/development/**: Technical debugging guides
 
 ## 📚 Documentation
 
-- **[MD/CLAUDE.md](MD/CLAUDE.md)** - Complete development guide
-- **[MD/deployment/](MD/deployment/)** - Deployment scenarios
-- **[MD/security/](MD/security/)** - Security implementation
+- **[docs/CLAUDE.md](docs/CLAUDE.md)** - Complete development guide
+- **[docs/deployment/](docs/deployment/)** - Deployment scenarios
+- **[docs/security/](docs/security/)** - Security implementation
+- **[docs/development/](docs/development/)** - Technical guides & debugging
 - **[scripts/README.md](scripts/README.md)** - Vocabulary management tools
 
 ## 🚀 Production Checklist

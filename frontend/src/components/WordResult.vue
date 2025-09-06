@@ -54,6 +54,14 @@
           >
             🎨
           </button>
+          <button 
+            @click="openFeedbackModal"
+            class="p-2 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors"
+            title="Report an issue with this word"
+            :disabled="isLoading"
+          >
+            🚩
+          </button>
         </div>
       </div>
     
@@ -598,6 +606,15 @@
       :wordData="result"
       @close="closeImageModal"
     />
+
+    <!-- Feedback Modal -->
+    <FeedbackModal
+      v-if="showFeedbackModal"
+      :word="result.original"
+      :wordData="result"
+      :lemmaId="result.lemma_id"
+      @close="closeFeedbackModal"
+    />
   </div>
 </template>
 
@@ -609,6 +626,7 @@ import SpeechButton from './SpeechButton.vue'
 import FavoriteButton from './FavoriteButton.vue'
 import ChatModal from './ChatModal.vue'
 import ImageModal from './ImageModal.vue'
+import FeedbackModal from './FeedbackModal.vue'
 
 const props = defineProps<{
   result: WordAnalysis
@@ -623,6 +641,7 @@ const { getPosDisplay, getPosClass, isVerbType } = usePartOfSpeech()
 // Modal state
 const showChatModal = ref(false)
 const showImageModal = ref(false)
+const showFeedbackModal = ref(false)
 
 // Collapsible sections state
 const showVerbProps = ref(false)
@@ -652,6 +671,17 @@ const openImageModal = () => {
 const closeImageModal = () => {
   showImageModal.value = false
 }
+
+const openFeedbackModal = () => {
+  showFeedbackModal.value = true
+}
+
+const closeFeedbackModal = () => {
+  showFeedbackModal.value = false
+}
+
+// Listen for custom close event from FeedbackModal
+document.addEventListener('closeFeedbackModal', closeFeedbackModal)
 
 // Helper computed properties
 const hasTranslations = computed(() => {
@@ -808,6 +838,7 @@ const getPersonDisplayName = (person: string): string => {
 
 interface WordAnalysis {
   original: string
+  lemma_id?: number
   found?: boolean
   pos?: string
   upos?: string
