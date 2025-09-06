@@ -290,17 +290,34 @@ class EnhancedSearchService:
         return None
     
     async def search_compound_variations(self, db: Session, query: str) -> Optional[WordLemma]:
-        """Search for compound word variations"""
+        """Search for compound word variations - only for words starting or ending with query"""
         from sqlalchemy.orm import joinedload
-        # Search for words that contain the query as a substring
-        if len(query) >= 4:
-            return db.query(WordLemma).options(
+        
+        # Only search compound words if query is likely a valid German word component
+        # and only match at word boundaries (start/end of compound words)
+        if len(query) >= 6:
+            # Search for words that START with the query (e.g., "haus" -> "Hausfrau")
+            result = db.query(WordLemma).options(
                 joinedload(WordLemma.translations),
                 joinedload(WordLemma.examples),
                 joinedload(WordLemma.forms)
             ).filter(
-                WordLemma.lemma.ilike(f'%{query}%')
+                WordLemma.lemma.ilike(f'{query}%')
             ).first()
+            
+            if result:
+                return result
+                
+            # Search for words that END with the query (e.g., "haus" -> "Krankenhaus")
+            result = db.query(WordLemma).options(
+                joinedload(WordLemma.translations),
+                joinedload(WordLemma.examples),
+                joinedload(WordLemma.forms)
+            ).filter(
+                WordLemma.lemma.ilike(f'%{query}')
+            ).first()
+            
+            return result
         return None
     
     async def search_case_variations(self, db: Session, query: str) -> Optional[WordLemma]:

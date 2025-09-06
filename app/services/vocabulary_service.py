@@ -1132,13 +1132,26 @@ class VocabularyService:
     ) -> Dict[str, Any]:
         """搜索词汇（支持模糊匹配）"""
         
-        # 在本地词库中模糊搜索
-        words_query = db.query(WordLemma).filter(
-            or_(
-                WordLemma.lemma.ilike(f"%{query}%"),
-                WordLemma.pos.ilike(f"%{query}%")
+        # 在本地词库中搜索 - 短查询使用精确匹配，长查询使用模糊搜索
+        if len(query) >= 6:
+            # 长查询允许子字符串搜索（用于复合词）
+            words_query = db.query(WordLemma).filter(
+                or_(
+                    WordLemma.lemma.ilike(f"%{query}%"),
+                    WordLemma.pos.ilike(f"%{query}%")
+                )
             )
-        )
+        else:
+            # 短查询只进行精确匹配（避免错误的子字符串匹配）
+            words_query = db.query(WordLemma).filter(
+                or_(
+                    WordLemma.lemma.ilike(query),
+                    WordLemma.lemma.ilike(query.capitalize()),
+                    WordLemma.lemma.ilike(query.upper()),
+                    WordLemma.lemma.ilike(query.lower()),
+                    WordLemma.pos.ilike(f"%{query}%")  # POS搜索保持模糊匹配
+                )
+            )
         
         total = words_query.count()
         words = words_query.offset(skip).limit(limit).all()
