@@ -188,8 +188,8 @@ class EnhancedSearchService:
         if result:
             return await self.format_found_result(result, 'case_variation', query)
         
-        # 6. If still not found, try OpenAI with enhanced validation
-        return await self.search_with_openai_validation(db, query, user)
+        # 6. If still not found, try smart typo detection (replaces old OpenAI validation)
+        return await self.search_with_smart_typo_detection(db, query, user)
     
     def german_case_variants(self, text: str) -> List[str]:
         """Generate proper German case variants handling umlauts correctly"""
@@ -452,137 +452,178 @@ Focus on useful, relevant German vocabulary. NO English words. NO made-up words.
         else:
             return "very_low"
     
-    async def search_with_openai_validation(
+    async def search_with_smart_typo_detection(
         self, 
         db: Session, 
         query: str, 
         user: User
     ) -> Dict[str, Any]:
-        """Enhanced OpenAI search with validation"""
+        """Smart AI-powered typo detection for translate mode with German learning context"""
         
-        # Enhanced prompt that handles plurals and inflections better
         enhanced_prompt = f"""
-        Analyze the German word or phrase "{query}" and return a JSON response.
-
-        IMPORTANT RULES:
-        1. Analyze the EXACT input "{query}" - do not auto-correct
-        2. If it's a valid German word (including plurals, inflections, compounds), mark found: true
-        3. If it's an inflected form (like "trinke" from "trinken"), mark found: true AND provide the infinitive
-        4. If it's not valid German, mark found: false and provide suggestions
+        You are a German language tutor. Analyze the input "{query}" in German learning context.
         
-        For valid German words, return:
+        ANALYSIS APPROACH:
+        1. If "{query}" is valid German → mark found: true
+        2. If "{query}" looks like a German typo → provide corrections
+        3. If "{query}" is clearly not German → mark found: false
+        
+        For VALID German words, return:
         {{
             "found": true,
             "input_word": "{query}",
-            "lemma": "base form (e.g., Kartoffeln -> Kartoffel)",
-            "is_plural": true/false,
-            "is_inflected": true/false,
-            "pos": "noun|verb|adjective|etc",
-            "article": "der|die|das" (for nouns),
-            "translations_en": ["translation1", "translation2"],
+            "lemma": "base form",
+            "pos": "noun|verb|adjective|adverb",
+            "article": "der|die|das",
+            "translations_en": ["meaning1", "meaning2"],
             "translations_zh": ["翻译1", "翻译2"],
-            "grammatical_info": {{
-                "singular": "Kartoffel" (if plural),
-                "plural": "Kartoffeln" (if singular),
-                "infinitive": "gehen" (if inflected verb)
-            }},
-            "example": {{"de": "sentence", "en": "translation", "zh": "翻译"}}
+            "example": {{"de": "German sentence", "en": "English", "zh": "中文"}}
         }}
         
-        For invalid words, return:
+        For LIKELY TYPOS, provide context-aware corrections:
         {{
             "found": false,
             "input_word": "{query}",
-            "reason": "not_german|typo|gibberish",
-            "suggestions": [
-                {{"word": "similar1", "similarity": 0.85, "meaning": "explanation"}},
-                {{"word": "similar2", "similarity": 0.80, "meaning": "explanation"}}
-            ],
-            "message": "explanation"
+            "likely_typo": true,
+            "smart_corrections": [
+                {{
+                    "corrected_word": "gehen",
+                    "typo_pattern": "missing_letter_e",
+                    "confidence": 0.95,
+                    "explanation": "'{query}' is likely 'gehen' with missing 'e'",
+                    "learning_context": "common infinitive verb",
+                    "semantic_field": "movement_verbs"
+                }}
+            ]
         }}
         
-        Examples:
-        - "Kartoffeln" found: true, lemma: "Kartoffel", is_plural: true
-        - "gehe" found: true, lemma: "gehen", is_inflected: true  
-        - "trinke" found: true, lemma: "trinken", is_inflected: true
-        - "nim" found: false, suggestions with word nehmen similarity 0.7
+        For NON-GERMAN input:
+        {{
+            "found": false,
+            "input_word": "{query}",
+            "likely_typo": false,
+            "reason": "not_german_pattern",
+            "contextual_suggestions": [
+                {{"word": "gehen", "reason": "basic movement verb", "level": "A1"}},
+                {{"word": "haben", "reason": "essential auxiliary verb", "level": "A1"}},
+                {{"word": "sein", "reason": "most important German verb", "level": "A1"}}
+            ]
+        }}
+        
+        TYPO PATTERNS to recognize:
+        - Missing letters: "gehn" → "gehen"
+        - Wrong letters: "triken" → "trinken"
+        - Missing umlauts: "konnen" → "können" 
+        - Keyboard errors: "bidt" → "bist"
+        - Extra letters: "gehhen" → "gehen"
+        
+        CONTEXT AWARENESS RULES:
+        - For verbs: suggest related verbs or infinitive forms
+        - For nouns: consider semantic fields (animals, food, family, etc.)
+        - Focus on German learning vocabulary (A1-B2 level)
+        - Avoid suggesting unrelated words even if similar spelling
+        - Consider what German students actually need to learn
+        
+        EXAMPLES:
+        - "bist" → found: true (valid German, 2nd person singular of 'sein')
+        - "gehn" → corrected_word: "gehen", learning_context: "basic movement verb"
+        - "triken" → corrected_word: "trinken", learning_context: "daily activity verb"
         """
         
         try:
             response = await self.openai_service.client.chat.completions.create(
                 model=self.openai_service.model,
                 messages=[
-                    {"role": "system", "content": "You are a precise German language expert. Always respond with valid JSON."},
+                    {"role": "system", "content": "You are a German language expert specializing in student learning context. Focus on meaningful corrections and suggestions. Always respond with valid JSON."},
                     {"role": "user", "content": enhanced_prompt}
                 ],
                 response_format={"type": "json_object"},
-                max_tokens=1000
+                max_tokens=800,
+                temperature=0.1
             )
             
             import json
             analysis = json.loads(response.choices[0].message.content)
             
-            # Validate OpenAI response
-            if analysis.get('input_word', '').lower() != query.lower():
-                # OpenAI changed the input - reject
-                return {
-                    'found': False,
-                    'original': query,
-                    'message': f"'{query}' is not a recognized German word.",
-                    'source': 'openai_validation_failed',
-                    'suggestions': analysis.get('suggestions', [])
-                }
-            
             if analysis.get('found'):
-                # Valid word - save to database with proper lemma handling
-                lemma = analysis.get('lemma', query)
-                
-                # Handle plural/inflected forms - point to the base form
-                if analysis.get('is_plural') or analysis.get('is_inflected'):
-                    # Check if base form already exists
-                    existing_base = db.query(WordLemma).filter(WordLemma.lemma.ilike(lemma)).first()
-                    if existing_base:
-                        # Return the base form but indicate the search was for an inflection
-                        result = await self.format_found_result(existing_base, 'inflected_to_base', query)
-                        result['inflection_info'] = {
-                            'searched_form': query,
-                            'base_form': lemma,
-                            'is_plural': analysis.get('is_plural', False),
-                            'is_inflected': analysis.get('is_inflected', False),
-                            'redirect_message': f"'{query}' is a form of '{lemma}'"
-                        }
-                        return result
-                    else:
-                        # Base form doesn't exist, this shouldn't happen for common words like trinken
-                        # Return not found with suggestion
-                        return {
-                            'found': False,
-                            'original': query,
-                            'message': f"'{query}' appears to be a form of '{lemma}', but '{lemma}' was not found in the database.",
-                            'source': 'inflected_base_missing',
-                            'suggestions': [{'word': lemma, 'similarity': 1.0, 'meaning': f"Base form of {query}"}]
-                        }
-                
-                # Save new word and return
+                # Valid German word
                 saved_word = await self.save_openai_analysis(db, query, analysis, user)
-                return await self.format_found_result(saved_word, 'openai_new', query)
-            
-            else:
-                # Invalid word - return suggestions
+                return await self.format_found_result(saved_word, 'ai_validated_word', query)
+                
+            elif analysis.get('likely_typo'):
+                # Process context-aware typo corrections
+                corrections = analysis.get('smart_corrections', [])
+                validated_suggestions = []
+                
+                for correction in corrections[:4]:
+                    word = correction.get('corrected_word', '').strip()
+                    if word:
+                        existing_word = db.query(WordLemma).filter(
+                            WordLemma.lemma.ilike(word)
+                        ).first()
+                        
+                        if existing_word:
+                            translations = [t.text for t in existing_word.translations if t.lang_code == 'en'][:2]
+                            
+                            validated_suggestions.append({
+                                'word': existing_word.lemma,
+                                'pos': existing_word.pos,
+                                'meaning': ', '.join(translations) if translations else correction.get('explanation', ''),
+                                'explanation': correction.get('explanation', ''),
+                                'learning_context': correction.get('learning_context', ''),
+                                'confidence': correction.get('confidence', 0.8),
+                                'source': 'ai_context_aware_typo'
+                            })
+                
                 return {
                     'found': False,
                     'original': query,
-                    'suggestions': analysis.get('suggestions', []),
-                    'message': analysis.get('message', f"'{query}' is not a recognized German word."),
-                    'source': 'openai_invalid'
+                    'likely_typo': True,
+                    'smart_suggestions': validated_suggestions,
+                    'message': f"'{query}' not found. Did you mean one of these contextually relevant words?",
+                    'source': 'ai_smart_typo_detection'
                 }
-        
+                
+            else:
+                # Not German - provide learning-focused suggestions
+                contextual_suggestions = analysis.get('contextual_suggestions', [])
+                validated_suggestions = []
+                
+                for suggestion in contextual_suggestions[:5]:
+                    word = suggestion.get('word', '').strip()
+                    if word:
+                        existing_word = db.query(WordLemma).filter(
+                            WordLemma.lemma.ilike(word)
+                        ).first()
+                        
+                        if existing_word:
+                            translations = [t.text for t in existing_word.translations if t.lang_code == 'en'][:2]
+                            
+                            validated_suggestions.append({
+                                'word': existing_word.lemma,
+                                'pos': existing_word.pos,
+                                'meaning': ', '.join(translations) if translations else suggestion.get('reason', ''),
+                                'learning_level': suggestion.get('level', 'A2'),
+                                'reason': suggestion.get('reason', 'common German word'),
+                                'source': 'ai_learning_suggestion'
+                            })
+                
+                return {
+                    'found': False,
+                    'original': query,
+                    'likely_typo': False,
+                    'contextual_suggestions': validated_suggestions,
+                    'message': f"'{query}' doesn't appear to be German. Here are some common German words to learn:",
+                    'source': 'ai_learning_focused'
+                }
+                
         except Exception as e:
+            print(f"Smart typo detection error: {e}")
             return {
                 'found': False,
                 'original': query,
                 'message': f"Analysis error: {str(e)}",
-                'source': 'openai_error'
+                'source': 'ai_error'
             }
     
     def remove_german_articles(self, text: str) -> str:

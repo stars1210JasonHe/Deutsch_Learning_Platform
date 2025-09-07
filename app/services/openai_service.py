@@ -184,14 +184,20 @@ class OpenAIService:
         # - `verb_props` maps to VerbProps (aux, partizip_ii, regularity, separable, prefix, reflexive, valency_json)
         # - translations + example are for UX
         user = f"""
-Return a single JSON object for the EXACT German word "{word}". Do NOT correct the input.
+Analyze the German input "{word}" and provide intelligent assistance for German learning.
 
-If the word is VALID German (lemma or inflected form), produce:
+ANALYSIS APPROACH:
+1. If "{word}" is VALID German (exact match or inflected form) → return found: true
+2. If "{word}" looks like a GERMAN TYPO → correct it and return found: true  
+3. If "{word}" is clearly NOT German → return found: false with suggestions
+
+For VALID German words (including corrected typos), produce:
 
 {{
   "found": true,
   "input_word": "{word}",
-  "lemma": "base lemma as used in dictionaries (preserve German capitalization rules)",
+  "corrected_from": "{word}" (only if this was a typo correction),
+  "lemma": "base lemma (corrected if needed)",
   "pos": "one or more of: noun|verb|vt|vi|vr|aux|modal|adj|adv|prep|det|art|pron|conj|interj|num|vi_impers|vt_impers|vi_prep_obj|vt_prep_obj",
 
   "word_forms": [
@@ -235,40 +241,51 @@ If the word is VALID German (lemma or inflected form), produce:
   "example": {{"de":"natural German sentence with the lemma", "en":"", "zh":""}}
 }}
 
-If "{word}" is NOT valid German, return exactly:
+For INVALID input (not German or unrecognizable), return:
 {{
   "found": false,
   "input_word": "{word}",
-  "message": "not a recognized German word",
   "suggestions": [
-    {{"word":"...", "pos":"noun|verb|adj|...", "meaning":"brief EN gloss"}}
-  ]
+    {{"word": "gehen", "reason": "common verb for beginners", "pos": "verb"}},
+    {{"word": "trinken", "reason": "essential daily verb", "pos": "verb"}},
+    {{"word": "haben", "reason": "auxiliary verb", "pos": "verb"}},
+    {{"word": "sein", "reason": "most important German verb", "pos": "verb"}},
+    {{"word": "können", "reason": "modal verb", "pos": "verb"}}
+  ],
+  "message": "'{word}' is not recognized as German"
 }}
 
-MANDATORY REQUIREMENT: The "suggestions" array MUST contain exactly 5 German words - no more, no less.
-If you return fewer than 5 suggestions, the response will be rejected.
-Replace the example words above with actual German words similar to "{word}".
+SMART TYPO CORRECTION PATTERNS:
+- Missing letters: "gehn" → "gehen"
+- Wrong letters: "triken" → "trinken"  
+- Missing umlauts: "konnen" → "können"
+- Keyboard errors: "bidt" → "bist"
+- Extra letters: "gehhen" → "gehen"
+- Case errors: "Ich" → "ich"
+- Inflection help: "trinke" → "trinken" (show infinitive)
 
-Each suggestion MUST be:
-1. A real German word (not English, not made-up) 
-2. Phonetically similar OR semantically related to "{word}"
-3. Include correct POS (noun|verb|adj|adv|prep|art|pron|num|interj)
-4. Brief English meaning
+GERMAN LEARNING CONTEXT AWARENESS:
+- Prioritize A1-B2 level vocabulary
+- Focus on common words students actually need
+- Consider semantic context (verbs suggest related verbs)
+- Avoid suggesting obscure or technical terms
+- Help with verb conjugation learning patterns
 
-COUNT CHECK: Ensure you provide exactly these 5 suggestions:
-- Suggestion 1: [German word]
-- Suggestion 2: [German word] 
-- Suggestion 3: [German word]
-- Suggestion 4: [German word]
-- Suggestion 5: [German word]
+EXAMPLES:
+- Input: "gehn" → found: true, corrected_from: "gehn", lemma: "gehen"
+- Input: "bist" → found: true (this IS valid German, no correction needed)
+- Input: "triken" → found: true, corrected_from: "triken", lemma: "trinken"  
+- Input: "xyz123" → found: false, suggestions: [common German learning words]
+- Input: "qwerty" → found: false, suggestions: [beginner German vocabulary]
 
-STRICT RULES:
-- JSON only. No extra text.
+MANDATORY: Suggestions MUST contain exactly 5 German words - no more, no less.
+
+STRICT REQUIREMENTS:
 - For persons use EXACT: ich, du, er_sie_es, wir, ihr, sie_Sie
 - For tenses use EXACT: praesens, praeteritum, perfekt, plusquamperfekt, futur_i, futur_ii, imperativ, konjunktiv_i, konjunktiv_ii
-- For noun article encode gender via: (gender, masc|fem|neut) + form in der/die/das.
-- For plural encode as: (number, plural) + the plural surface form.
-- Omit unknown fields entirely (do not set null or empty strings).
+- Suggestions MUST contain exactly 5 German words
+- Focus on German learning context, not random dictionary words
+- Consider semantic relationships and learning progression
 """
 
         try:

@@ -231,33 +231,44 @@ class VocabularyService:
                 "source": "error_fallback"
             }
         
-        # 检查OpenAI是否找到了有效的词汇
+        # Handle OpenAI results including typo corrections
         if not openai_analysis:
             raise ValueError("OpenAI returned no analysis")
-        
-        # 如果OpenAI没有找到词汇，返回建议
-        if not openai_analysis.get("found", True):
+
+        if openai_analysis.get("found", True):
+            # Valid word (including corrected typos)
+            word_to_save = openai_analysis.get("lemma", lemma)
+            
+            # Save to database
+            word = await self._save_word_to_database(db, word_to_save, openai_analysis)
+            await self._log_search_history(db, user, lemma, "word_lookup", from_database=False)
+            
+            # Format result
+            result = await self._format_word_data(word, from_database=False, openai_data=openai_analysis)
+            
+            # Add typo correction info if this was a correction
+            if openai_analysis.get("corrected_from"):
+                result["typo_correction"] = {
+                    "original_input": lemma,
+                    "corrected_to": word_to_save, 
+                    "explanation": f"'{lemma}' was corrected to '{word_to_save}'",
+                    "correction_type": "typo_correction",
+                    "source": "openai_typo_correction"
+                }
+                print(f"OpenAI typo correction: '{lemma}' → '{word_to_save}'")
+            
+            return result
+            
+        else:
+            # Not found - return contextual suggestions
             await self._log_search_history(db, user, lemma, "word_lookup_not_found", from_database=False)
             return {
                 "found": False,
                 "original": lemma,
                 "suggestions": openai_analysis.get("suggestions", []),
                 "message": openai_analysis.get("message", f"'{lemma}' is not a recognized German word."),
-                "source": "openai_suggestions"
+                "source": "openai_contextual_suggestions"
             }
-        
-        # 验证找到的词汇数据
-        if not openai_analysis.get("pos"):
-            raise ValueError("OpenAI returned invalid analysis payload for word")
-        
-        # 3. 保存到本地词库
-        word = await self._save_word_to_database(db, lemma, openai_analysis)
-        
-        # 4. 记录搜索历史
-        await self._log_search_history(db, user, lemma, "word_lookup", from_database=False)
-        
-        # 5. 返回统一格式数据
-        return await self._format_word_data(word, from_database=False, openai_data=openai_analysis)
 
     async def _find_existing_word(self, db: Session, lemma: str) -> Optional[WordLemma]:
         """Find by lemma or any inflected form; eager-load all relations used downstream."""
